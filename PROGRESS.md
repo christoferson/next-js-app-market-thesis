@@ -180,11 +180,37 @@ D3 verification history:
 - Keyboard navigation and mobile layout smoke-tested via rendered HTML;
   visual confirmation steps listed in the D4 report for the user to run.
 
+## D5 provider decision (2026-08-09)
+
+The user chose SPEC §D5 option C — **stay in demo mode and postpone live
+market data** — preceded by an evaluation of five named providers (EODHD,
+Alpha Vantage, Finnhub, Massive, J-Quants). Evaluation notes and sanitized
+samples are under `docs/references/` (see `_manifest.md`). No live-provider
+code was written; no provider was selected.
+
+Key evaluation findings recorded for future D5 work:
+
+- No single evaluated provider verifiably covers both US and Japanese
+  markets from public docs alone; a US provider + J-Quants pairing is the
+  most plausible two-provider architecture, pending licensing review.
+- J-Quants prohibits redistributing retrieved data in viewable form — a
+  material constraint on any public deployment using it.
+- Japanese symbol formats differ per provider (J-Quants: 5-digit codes;
+  suffix styles like CODE.EXCHANGE elsewhere are undocumented for Tokyo) —
+  our stable internal instrument IDs (never provider symbols) remain the
+  right design.
+- Real providers return numeric values as strings (EODHD Financials, all of
+  Alpha Vantage, J-Quants /fins), use multiple missing-value sentinels
+  (null, "", "n/a", "None", "-", absent key), disagree on percent
+  conventions (Finnhub day-change percent is 1.23 = 1.23%), and can return
+  errors as HTTP 200 (Alpha Vantage) — all validating the D1 decision to
+  runtime-validate and normalize at the provider boundary.
+
 ## Next proposed milestone
 
-D5 — Live Market-Data Provider
+D6 — Discovery Quality and Release Polish (as a demo release; SPEC §26
+requires explicit user approval to define Discovery as complete without a
+live provider).
 
-D5 is proposed only. It is not authorized until the user explicitly approves
-it, and it begins with a provider-selection decision (SPEC §D5 checkpoint):
-one provider for both markets, US + Japan-specific providers, staying in
-demo mode, or evaluating named options first.
+D6 is proposed only. It is not authorized until the user explicitly
+approves it.

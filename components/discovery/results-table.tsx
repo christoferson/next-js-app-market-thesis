@@ -66,7 +66,7 @@ function InstrumentIdentity({ snapshot }: { snapshot: InstrumentSnapshot }) {
       <div className="font-semibold text-stone-900">{symbol}</div>
       <div className="text-stone-700">{name}</div>
       {nativeName ? (
-        <div lang="ja" className="text-xs text-stone-500">
+        <div lang="ja" className="text-xs text-stone-600">
           {nativeName}
         </div>
       ) : null}
@@ -396,7 +396,7 @@ export function ResultsTable({ snapshots }: ResultsTableProps) {
           <div className="overflow-x-auto">
             <IndicesTable snapshots={snapshots.filter(isIndexSnapshot)} />
           </div>
-          <p className="text-xs text-stone-500">{NOT_TRADABLE_NOTE}</p>
+          <p className="text-xs text-stone-600">{NOT_TRADABLE_NOTE}</p>
         </div>
       );
     default:

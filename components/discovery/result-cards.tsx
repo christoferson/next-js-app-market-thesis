@@ -96,7 +96,7 @@ function ResultCard({ snapshot }: { snapshot: InstrumentSnapshot }) {
           <p className="font-semibold text-stone-900">{instrument.symbol}</p>
           <p className="text-sm text-stone-700">{instrument.name}</p>
           {instrument.nativeName ? (
-            <p lang="ja" className="text-xs text-stone-500">
+            <p lang="ja" className="text-xs text-stone-600">
               {instrument.nativeName}
             </p>
           ) : null}
@@ -115,26 +115,26 @@ function ResultCard({ snapshot }: { snapshot: InstrumentSnapshot }) {
         </div>
       </div>
 
-      <p className="mt-2 text-xs text-stone-500">
+      <p className="mt-2 text-xs text-stone-600">
         {`${instrument.listingMarket} · ${instrument.currency}`}
       </p>
 
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         {metrics.map((metric) => (
           <div key={metric.label}>
-            <dt className="text-xs text-stone-500">{metric.label}</dt>
+            <dt className="text-xs text-stone-600">{metric.label}</dt>
             <dd className="tabular-nums text-stone-800">{metric.value}</dd>
           </div>
         ))}
       </dl>
 
       {snapshot.assetType === "index" ? (
-        <p className="mt-3 text-xs text-stone-500">
+        <p className="mt-3 text-xs text-stone-600">
           Reference index — not directly tradable
         </p>
       ) : null}
 
-      <p className="mt-3 text-xs text-stone-500">
+      <p className="mt-3 text-xs text-stone-600">
         {`As of ${formatDate(snapshot.quote?.asOf ?? snapshot.provenance.asOf)}`}
       </p>
     </li>

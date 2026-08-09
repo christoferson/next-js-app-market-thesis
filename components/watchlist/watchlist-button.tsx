@@ -43,8 +43,8 @@ export function WatchlistButton({
       }
       className={
         size === "detail"
-          ? "rounded-sm border border-stone-400 px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
-          : "rounded-sm border border-stone-300 px-2 py-0.5 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+          ? "rounded-sm border border-stone-400 px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors motion-reduce:transition-none hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+          : "rounded-sm border border-stone-300 px-2 py-0.5 text-xs font-medium text-stone-700 transition-colors motion-reduce:transition-none hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
       }
     >
       {saved ? "Saved ✓" : "Watchlist"}

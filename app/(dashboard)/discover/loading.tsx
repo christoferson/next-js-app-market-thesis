@@ -10,7 +10,7 @@ export default function DiscoverLoading() {
         </p>
       </div>
 
-      <p role="status" className="text-sm text-stone-500">
+      <p role="status" className="text-sm text-stone-600">
         Loading instruments…
       </p>
     </div>

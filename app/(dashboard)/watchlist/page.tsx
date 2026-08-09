@@ -66,7 +66,7 @@ export default function WatchlistPage() {
                 type="button"
                 aria-label={`Remove ${entry.symbol} from watchlist`}
                 onClick={() => remove(entry.instrumentId)}
-                className="shrink-0 rounded-sm border border-stone-300 px-2 py-0.5 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+                className="shrink-0 rounded-sm border border-stone-300 px-2 py-0.5 text-xs font-medium text-stone-700 transition-colors motion-reduce:transition-none hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
               >
                 Remove
               </button>
@@ -75,10 +75,17 @@ export default function WatchlistPage() {
         </ul>
       )}
 
-      <p className="text-xs leading-relaxed text-stone-500">
-        Saved names and symbols are stored as they appeared when you added them.
-        Open an instrument to see its current details from the data source.
-      </p>
+      <div className="space-y-1 text-xs leading-relaxed text-stone-600">
+        <p>
+          Saved names and symbols are stored as they appeared when you added
+          them. Open an instrument to see its current details from the data
+          source.
+        </p>
+        <p>
+          If a saved instrument is no longer available, you can still remove it
+          here.
+        </p>
+      </div>
     </div>
   );
 }

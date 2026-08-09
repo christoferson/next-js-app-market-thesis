@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import type { EtfFilters } from "@/lib/screener/etf-filter";
 
 /**
  * D4 ETF filter panel. Rendered only on the ETFs tab, so fund filters can
  * never be applied to stocks or indices.
+ *
+ * D6: below the `md` breakpoint the fields collapse behind a "Filters"
+ * disclosure so the results stay visible on a phone; from `md` up the fields
+ * are always shown and the disclosure button is not rendered at all, so
+ * `aria-expanded` is never announced for a region that cannot collapse.
  *
  * Filter state lives in the URL (like every D2+ Discovery control): applying
  * navigates, and the panel repopulates from the `filters` prop, so back,
@@ -186,11 +191,42 @@ const INPUT_CLASS =
 const SELECT_CLASS =
   "w-full rounded-sm border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 const PRIMARY_BUTTON_CLASS =
-  "rounded-sm border border-stone-700 bg-stone-800 px-3 py-1.5 text-sm font-medium text-stone-50 transition-colors hover:bg-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
+  "rounded-sm border border-stone-700 bg-stone-800 px-3 py-1.5 text-sm font-medium text-stone-50 transition-colors motion-reduce:transition-none hover:bg-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 const SECONDARY_BUTTON_CLASS =
-  "rounded-sm border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
+  "rounded-sm border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors motion-reduce:transition-none hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 const LABEL_CLASS = "block text-xs font-medium text-stone-700";
-const HINT_CLASS = "text-[11px] text-stone-500";
+const HINT_CLASS = "text-[11px] text-stone-600";
+const DISCLOSURE_BUTTON_CLASS =
+  "flex w-full items-center justify-between gap-2 rounded-sm border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors motion-reduce:transition-none hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
+const FIELDS_ID = "etf-filter-fields";
+
+/** Matches Tailwind's `md` breakpoint, which owns the layout switch. */
+const DESKTOP_QUERY = "(min-width: 48rem)";
+
+function subscribeToDesktopQuery(onChange: () => void): () => void {
+  const query = window.matchMedia(DESKTOP_QUERY);
+  query.addEventListener("change", onChange);
+  return () => {
+    query.removeEventListener("change", onChange);
+  };
+}
+
+/**
+ * Whether the viewport is at or above `md`. Collapsed fields are unmounted
+ * rather than merely hidden, so a phone user never tabs through eight form
+ * controls that are not on screen; that requires knowing the breakpoint in JS.
+ *
+ * The server snapshot is `true`, so server-rendered and no-JS output always
+ * contains the full field set — the panel degrades to the D4 always-open form
+ * instead of becoming unreachable.
+ */
+function useIsDesktopViewport(): boolean {
+  return useSyncExternalStore(
+    subscribeToDesktopQuery,
+    () => window.matchMedia(DESKTOP_QUERY).matches,
+    () => true
+  );
+}
 
 export interface EtfFilterPanelProps {
   /** The filter set currently reflected in the URL. */
@@ -212,6 +248,8 @@ export function EtfFilterPanel({
     draftFromFilters(filters)
   );
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const isDesktop = useIsDesktopViewport();
+  const [isOpen, setIsOpen] = useState(false);
 
   // Re-seed the inputs when the URL's filters change from outside this panel
   // (back/forward, or a shared link). Adjusting during render rather than in an
@@ -239,6 +277,8 @@ export function EtfFilterPanel({
 
   const categoryOptions = optionsWith(categories, draft.category);
   const regionOptions = optionsWith(exposureRegions, draft.exposureRegion);
+  const activeCount = Object.keys(filters).length;
+  const areFieldsVisible = isDesktop || isOpen;
 
   return (
     <form
@@ -249,151 +289,178 @@ export function EtfFilterPanel({
         <legend className="text-sm font-semibold text-stone-900">
           ETF filters
         </legend>
-        <p className="text-xs text-stone-500">
-          Leave a field empty to skip that filter. A fund with unavailable data
-          never passes an active filter, and a fund whose leveraged or inverse
-          status is unknown does not pass an exclusion.
-        </p>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-1">
-            <label htmlFor="etf-filter-category" className={LABEL_CLASS}>
-              Category
-            </label>
-            <select
-              id="etf-filter-category"
-              value={draft.category}
-              onChange={(event) =>
-                setDraft({ ...draft, category: event.target.value })
-              }
-              className={SELECT_CLASS}
-            >
-              <option value="">Any category</option>
-              {categoryOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="etf-filter-region" className={LABEL_CLASS}>
-              Exposure region
-            </label>
-            <select
-              id="etf-filter-region"
-              value={draft.exposureRegion}
-              onChange={(event) =>
-                setDraft({ ...draft, exposureRegion: event.target.value })
-              }
-              aria-describedby="etf-filter-region-hint"
-              className={SELECT_CLASS}
-            >
-              <option value="">Any region</option>
-              {regionOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-            <p id="etf-filter-region-hint" className={HINT_CLASS}>
-              Where the fund invests, not where it is listed.
-            </p>
-          </div>
-
-          {NUMERIC_FILTER_FIELDS.map((field) => {
-            const error = fieldErrors[field.key];
-            const hintId = `etf-filter-${field.key}-hint`;
-            const errorId = `etf-filter-${field.key}-error`;
-            return (
-              <div key={field.key} className="space-y-1">
-                <label
-                  htmlFor={`etf-filter-${field.key}`}
-                  className={LABEL_CLASS}
-                >
-                  {field.label}
-                </label>
-                <input
-                  id={`etf-filter-${field.key}`}
-                  type="number"
-                  inputMode="decimal"
-                  step={field.step}
-                  value={draft[field.key]}
-                  onChange={(event) =>
-                    setDraft({ ...draft, [field.key]: event.target.value })
-                  }
-                  aria-describedby={
-                    error === undefined ? hintId : `${hintId} ${errorId}`
-                  }
-                  aria-invalid={error === undefined ? undefined : true}
-                  className={INPUT_CLASS}
-                />
-                <p id={hintId} className={HINT_CLASS}>
-                  {field.hint}
-                </p>
-                {error === undefined ? null : (
-                  <p
-                    id={errorId}
-                    className="text-[11px] font-medium text-stone-800"
-                  >
-                    {error}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-
-          <div className="space-y-2 sm:col-span-2 lg:col-span-1">
-            <div className="flex items-start gap-2">
-              <input
-                id="etf-filter-excludeLeveraged"
-                type="checkbox"
-                checked={draft.excludeLeveraged}
-                onChange={(event) =>
-                  setDraft({ ...draft, excludeLeveraged: event.target.checked })
-                }
-                className="mt-0.5 size-4 accent-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
-              />
-              <label
-                htmlFor="etf-filter-excludeLeveraged"
-                className="text-xs font-medium text-stone-700"
-              >
-                Exclude leveraged ETFs
-              </label>
-            </div>
-            <div className="flex items-start gap-2">
-              <input
-                id="etf-filter-excludeInverse"
-                type="checkbox"
-                checked={draft.excludeInverse}
-                onChange={(event) =>
-                  setDraft({ ...draft, excludeInverse: event.target.checked })
-                }
-                className="mt-0.5 size-4 accent-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
-              />
-              <label
-                htmlFor="etf-filter-excludeInverse"
-                className="text-xs font-medium text-stone-700"
-              >
-                Exclude inverse ETFs
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-            Apply filters
-          </button>
+        {isDesktop ? null : (
           <button
             type="button"
-            onClick={handleClear}
-            className={SECONDARY_BUTTON_CLASS}
+            aria-expanded={isOpen}
+            aria-controls={FIELDS_ID}
+            onClick={() => setIsOpen(!isOpen)}
+            className={DISCLOSURE_BUTTON_CLASS}
           >
-            Clear filters
+            <span className="flex items-center gap-2">
+              Filters
+              {activeCount > 0 ? (
+                <span className="rounded-sm border border-stone-300 bg-stone-50 px-1.5 py-0.5 text-[11px] font-medium text-stone-700">
+                  {`${activeCount} active`}
+                </span>
+              ) : null}
+            </span>
+            <span className="text-xs font-normal text-stone-600">
+              {isOpen ? "Hide" : "Show"}
+            </span>
           </button>
-        </div>
+        )}
+
+        {areFieldsVisible ? (
+          <div id={FIELDS_ID} className="space-y-3">
+            <p className="text-xs text-stone-600">
+              Leave a field empty to skip that filter. A fund with unavailable data
+              never passes an active filter, and a fund whose leveraged or inverse
+              status is unknown does not pass an exclusion.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-1">
+                <label htmlFor="etf-filter-category" className={LABEL_CLASS}>
+                  Category
+                </label>
+                <select
+                  id="etf-filter-category"
+                  value={draft.category}
+                  onChange={(event) =>
+                    setDraft({ ...draft, category: event.target.value })
+                  }
+                  className={SELECT_CLASS}
+                >
+                  <option value="">Any category</option>
+                  {categoryOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label htmlFor="etf-filter-region" className={LABEL_CLASS}>
+                  Exposure region
+                </label>
+                <select
+                  id="etf-filter-region"
+                  value={draft.exposureRegion}
+                  onChange={(event) =>
+                    setDraft({ ...draft, exposureRegion: event.target.value })
+                  }
+                  aria-describedby="etf-filter-region-hint"
+                  className={SELECT_CLASS}
+                >
+                  <option value="">Any region</option>
+                  {regionOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <p id="etf-filter-region-hint" className={HINT_CLASS}>
+                  Where the fund invests, not where it is listed.
+                </p>
+              </div>
+
+              {NUMERIC_FILTER_FIELDS.map((field) => {
+                const error = fieldErrors[field.key];
+                const hintId = `etf-filter-${field.key}-hint`;
+                const errorId = `etf-filter-${field.key}-error`;
+                return (
+                  <div key={field.key} className="space-y-1">
+                    <label
+                      htmlFor={`etf-filter-${field.key}`}
+                      className={LABEL_CLASS}
+                    >
+                      {field.label}
+                    </label>
+                    <input
+                      id={`etf-filter-${field.key}`}
+                      type="number"
+                      inputMode="decimal"
+                      step={field.step}
+                      value={draft[field.key]}
+                      onChange={(event) =>
+                        setDraft({ ...draft, [field.key]: event.target.value })
+                      }
+                      aria-describedby={
+                        error === undefined ? hintId : `${hintId} ${errorId}`
+                      }
+                      aria-invalid={error === undefined ? undefined : true}
+                      className={INPUT_CLASS}
+                    />
+                    <p id={hintId} className={HINT_CLASS}>
+                      {field.hint}
+                    </p>
+                    {error === undefined ? null : (
+                      <p
+                        id={errorId}
+                        className="text-[11px] font-medium text-stone-800"
+                      >
+                        {error}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                <div className="flex items-start gap-2">
+                  <input
+                    id="etf-filter-excludeLeveraged"
+                    type="checkbox"
+                    checked={draft.excludeLeveraged}
+                    onChange={(event) =>
+                      setDraft({ ...draft, excludeLeveraged: event.target.checked })
+                    }
+                    className="mt-0.5 size-4 accent-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+                  />
+                  <label
+                    htmlFor="etf-filter-excludeLeveraged"
+                    className="text-xs font-medium text-stone-700"
+                  >
+                    Exclude leveraged ETFs
+                  </label>
+                </div>
+                <div className="flex items-start gap-2">
+                  <input
+                    id="etf-filter-excludeInverse"
+                    type="checkbox"
+                    checked={draft.excludeInverse}
+                    onChange={(event) =>
+                      setDraft({ ...draft, excludeInverse: event.target.checked })
+                    }
+                    className="mt-0.5 size-4 accent-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+                  />
+                  <label
+                    htmlFor="etf-filter-excludeInverse"
+                    className="text-xs font-medium text-stone-700"
+                  >
+                    Exclude inverse ETFs
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                Apply filters
+              </button>
+              <button
+                type="button"
+                onClick={handleClear}
+                className={SECONDARY_BUTTON_CLASS}
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+        ) : null}
       </fieldset>
     </form>
   );

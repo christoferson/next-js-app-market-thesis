@@ -9,6 +9,10 @@ import {
   serializeDiscoveryUrlState,
   type DiscoveryUrlState,
 } from "@/lib/discovery/url-state";
+import {
+  buildFilterChips,
+  clearAllFilters,
+} from "@/lib/discovery/filter-chips";
 import type { EtfFilters } from "@/lib/screener/etf-filter";
 import { AssetTabs } from "./asset-tabs";
 import { EtfFilterPanel } from "./etf-filter-panel";
@@ -81,6 +85,11 @@ function exclusionLines(
   }
   return lines;
 }
+
+const CHIP_CLASS =
+  "inline-flex items-center gap-1.5 rounded-sm border border-stone-300 bg-white px-2 py-0.5 text-xs font-medium text-stone-700 transition-colors motion-reduce:transition-none hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
+const CLEAR_ALL_CLASS =
+  "rounded-sm px-1.5 py-0.5 text-xs font-medium text-stone-700 underline transition-colors motion-reduce:transition-none hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 
 /**
  * URL-driven Discovery controls (D2). Every change navigates to a new URL;
@@ -176,6 +185,11 @@ export function DiscoveryControls({
 
   const lines = exclusionLines(summary);
 
+  // Chips describe URL-backed refinements only. The D3 screener keeps its
+  // filters in client state and offers its own Clear, so the row would
+  // otherwise promise to clear refinements it cannot see.
+  const chips = childOwnsResults ? [] : buildFilterChips(state);
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -203,7 +217,7 @@ export function DiscoveryControls({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <MarketSelector value={state.market} onChange={handleMarketChange} />
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-600">
           {childOwnsResults ? null : (
             <span>{`${pagination.total} results`}</span>
           )}
@@ -215,6 +229,43 @@ export function DiscoveryControls({
           ) : null}
         </div>
       </div>
+
+      {chips.length > 0 ? (
+        <div
+          role="group"
+          aria-labelledby="active-refinements-label"
+          className="flex flex-wrap items-center gap-2"
+        >
+          <span
+            id="active-refinements-label"
+            className="text-xs font-medium text-stone-600"
+          >
+            Active refinements
+          </span>
+          <ul className="flex flex-wrap items-center gap-2">
+            {chips.map((chip) => (
+              <li key={chip.key}>
+                <button
+                  type="button"
+                  aria-label={`Remove filter: ${chip.label}`}
+                  onClick={() => navigate(chip.remove(state))}
+                  className={CHIP_CLASS}
+                >
+                  <span>{chip.label}</span>
+                  <span aria-hidden="true">×</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => navigate(clearAllFilters(state))}
+            className={CLEAR_ALL_CLASS}
+          >
+            Clear all filters
+          </button>
+        </div>
+      ) : null}
 
       {state.assetType === "etf" && etfFacets !== undefined ? (
         <EtfFilterPanel
@@ -240,18 +291,24 @@ export function DiscoveryControls({
         tabIndex={-1}
         className="space-y-4"
       >
-        <p role="status" className="min-h-5 text-xs text-stone-500">
+        <p role="status" className="min-h-5 text-xs text-stone-600">
           {isPending ? "Loading instruments…" : ""}
         </p>
 
-        <div className={isPending ? "opacity-60 transition-opacity" : undefined}>
+        <div
+          className={
+            isPending
+              ? "opacity-60 transition-opacity motion-reduce:transition-none"
+              : undefined
+          }
+        >
           {children}
         </div>
 
         {!childOwnsResults && lines.length > 0 ? (
           <ul className="space-y-1">
             {lines.map((line) => (
-              <li key={line} className="text-xs text-stone-500">
+              <li key={line} className="text-xs text-stone-600">
                 {line}
               </li>
             ))}

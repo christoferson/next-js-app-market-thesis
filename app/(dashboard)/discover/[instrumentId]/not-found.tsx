@@ -21,7 +21,7 @@ export default function InstrumentNotFound() {
 
       <Link
         href="/discover"
-        className="inline-block rounded-sm border border-stone-400 px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+        className="inline-block rounded-sm border border-stone-400 px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors motion-reduce:transition-none hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
       >
         ← Back to Discover
       </Link>

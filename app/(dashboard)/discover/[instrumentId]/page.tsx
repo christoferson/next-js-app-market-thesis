@@ -68,10 +68,10 @@ const PROVIDER_DISPLAY_NAME: Record<string, string> = {
 const SECTION_CLASS = "space-y-3 rounded-md border border-stone-200 bg-white p-5";
 const SECTION_HEADING_CLASS = "text-base font-semibold text-stone-900";
 const GRID_CLASS = "grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3";
-const TERM_CLASS = "text-xs text-stone-500";
+const TERM_CLASS = "text-xs text-stone-600";
 const VALUE_CLASS = "text-sm text-stone-800 tabular-nums";
 const TEXT_VALUE_CLASS = "text-sm text-stone-800";
-const PERIOD_CLASS = "text-[11px] text-stone-500";
+const PERIOD_CLASS = "text-[11px] text-stone-600";
 
 function Section({
   title,
@@ -278,7 +278,7 @@ function DataAvailability({ snapshot }: { snapshot: InstrumentSnapshot }) {
                 <span className="font-medium text-stone-900">
                   {metric.label}
                 </span>
-                <span className="text-stone-500">{` ${MISSING_DISPLAY} `}</span>
+                <span className="text-stone-600">{` ${MISSING_DISPLAY} `}</span>
                 <span>{metric.reason}</span>
               </li>
             ))}
@@ -320,14 +320,14 @@ function DetailHeader({ snapshot }: { snapshot: InstrumentSnapshot }) {
           </div>
           <p className="text-sm text-stone-700">{instrument.name}</p>
           {instrument.nativeName ? (
-            <p lang="ja" className="text-sm text-stone-500">
+            <p lang="ja" className="text-sm text-stone-600">
               {instrument.nativeName}
             </p>
           ) : null}
         </div>
 
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-stone-600">
             {priceOrLevelLabel(snapshot)}
           </p>
           <p className="text-xl text-stone-900 tabular-nums">
@@ -507,7 +507,7 @@ function EtfSections({ snapshot }: { snapshot: EtfSnapshot }) {
             }
           />
         </dl>
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-stone-600">
           {`Listed in ${MARKET_LABEL[instrument.listingMarket]}. `}
           A listing market is not the same as investment exposure — the regions
           and sectors above describe what the fund invests in.
@@ -559,7 +559,7 @@ function IndexSections({ snapshot }: { snapshot: IndexSnapshot }) {
             value={formatIndexLevel(quote?.fiftyTwoWeekLow ?? null)}
           />
         </dl>
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-stone-600">
           An index level is a benchmark reading, not a share price.
         </p>
       </Section>
@@ -659,7 +659,7 @@ function StrategyScoreHeadline({ score }: { score: StrategyScore }) {
           {score.label}
         </span>
       )}
-      <span className="text-xs text-stone-500">
+      <span className="text-xs text-stone-600">
         {`Data completeness: ${formatRatio(score.availableWeight, 0)}/100`}
       </span>
     </div>
@@ -724,11 +724,11 @@ function StrategyBreakdown({ score }: { score: StrategyScore }) {
                 >
                   <span className="text-stone-700">{rule.label}</span>
                   {rule.points === null ? (
-                    <span className="block text-[11px] text-stone-500">
+                    <span className="block text-[11px] text-stone-600">
                       {rule.unavailableReason ?? NO_REASON_FALLBACK}
                     </span>
                   ) : (
-                    <span className="block text-[11px] text-stone-500">
+                    <span className="block text-[11px] text-stone-600">
                       {formatRuleValue(rule.metricId, rule.value)}
                     </span>
                   )}
@@ -896,7 +896,7 @@ export default async function InstrumentDetailPage({
     <div className="space-y-6">
       <Link
         href="/discover"
-        className="inline-block rounded-sm text-sm text-stone-600 transition-colors hover:text-stone-900 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+        className="inline-block rounded-sm text-sm text-stone-600 transition-colors motion-reduce:transition-none hover:text-stone-900 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
       >
         ← Back to Discover
       </Link>

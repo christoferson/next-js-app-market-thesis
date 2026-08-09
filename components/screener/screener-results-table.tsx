@@ -45,7 +45,7 @@ function StrategyMatch({
     return (
       <div className={`flex flex-col gap-0.5 ${alignmentClass}`}>
         <span className="text-stone-800">Insufficient Data</span>
-        <span className="text-[11px] text-stone-500">
+        <span className="text-[11px] text-stone-600">
           {`Data completeness: ${formatRatio(score.availableWeight, 0)}/100`}
         </span>
       </div>
@@ -74,7 +74,7 @@ function InstrumentIdentity({ snapshot }: { snapshot: StockSnapshot }) {
       <div className="font-semibold text-stone-900">{symbol}</div>
       <div className="text-stone-700">{name}</div>
       {nativeName ? (
-        <div lang="ja" className="text-xs text-stone-500">
+        <div lang="ja" className="text-xs text-stone-600">
           {nativeName}
         </div>
       ) : null}
@@ -219,12 +219,12 @@ export function ScreenerResultCards({ rows }: ScreenerResultsProps) {
               </div>
             </div>
 
-            <p className="mt-2 text-xs text-stone-500">
+            <p className="mt-2 text-xs text-stone-600">
               {`${instrument.listingMarket} · ${instrument.currency}`}
             </p>
 
             <div className="mt-3 border-t border-stone-200 pt-3">
-              <p className="text-xs text-stone-500">Strategy Match</p>
+              <p className="text-xs text-stone-600">Strategy Match</p>
               <div className="mt-1 text-sm">
                 <StrategyMatch score={score} align="left" />
               </div>
@@ -233,7 +233,7 @@ export function ScreenerResultCards({ rows }: ScreenerResultsProps) {
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               {facts.map((fact) => (
                 <div key={fact.label}>
-                  <dt className="text-xs text-stone-500">{fact.label}</dt>
+                  <dt className="text-xs text-stone-600">{fact.label}</dt>
                   <dd className="tabular-nums text-stone-800">{fact.value}</dd>
                 </div>
               ))}

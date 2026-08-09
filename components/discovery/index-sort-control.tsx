@@ -107,7 +107,7 @@ export function IndexSortControl({ value, onChange }: IndexSortControlProps) {
         </div>
       )}
 
-      <p id="index-sort-note" className="text-[11px] text-stone-500">
+      <p id="index-sort-note" className="text-[11px] text-stone-600">
         Indices with an unavailable return are listed last in either order.
       </p>
     </div>

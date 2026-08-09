@@ -268,9 +268,9 @@ const INPUT_CLASS =
 const SELECT_CLASS =
   "rounded-sm border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 const PRIMARY_BUTTON_CLASS =
-  "rounded-sm border border-stone-700 bg-stone-800 px-3 py-1.5 text-sm font-medium text-stone-50 transition-colors hover:bg-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
+  "rounded-sm border border-stone-700 bg-stone-800 px-3 py-1.5 text-sm font-medium text-stone-50 transition-colors motion-reduce:transition-none hover:bg-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 const SECONDARY_BUTTON_CLASS =
-  "rounded-sm border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
+  "rounded-sm border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 transition-colors motion-reduce:transition-none hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 
 export type StockScreenerProps = Omit<
   DiscoveryControlsProps,
@@ -284,12 +284,20 @@ export type StockScreenerProps = Omit<
  * list view. When the strategy is enabled this component owns the results
  * region: results come from POST /api/discovery/screen, where all scoring
  * happens server-side.
+ *
+ * This component is rendered for EVERY tab (not just Stocks) so the element
+ * type at its tree position never changes across tab switches — a type swap
+ * would remount the tablist inside DiscoveryControls and drop keyboard focus
+ * mid-arrow-navigation (D6 a11y fix). On non-stock tabs it renders the plain
+ * controls and nothing screener-specific.
  */
 export function StockScreener({
   state,
   pagination,
   meta,
   children,
+  etfFacets,
+  summary,
 }: StockScreenerProps) {
   const [isStrategyEnabled, setIsStrategyEnabled] = useState(false);
   const [draft, setDraft] = useState<FilterDraft>(EMPTY_DRAFT);
@@ -330,8 +338,10 @@ export function StockScreener({
   // no loading flag has to be set from inside the effect.
   const requestKey = `${reloadToken}|${JSON.stringify(requestBody)}`;
 
+  const isStockTab = state.assetType === "stock";
+
   useEffect(() => {
-    if (!isStrategyEnabled) return;
+    if (!isStrategyEnabled || !isStockTab) return;
 
     const controller = new AbortController();
 
@@ -384,7 +394,7 @@ export function StockScreener({
     };
     // requestKey covers every value in requestBody, including reloadToken.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStrategyEnabled, requestKey]);
+  }, [isStrategyEnabled, isStockTab, requestKey]);
 
   function handleStrategyToggle(enabled: boolean) {
     setIsStrategyEnabled(enabled);
@@ -442,6 +452,21 @@ export function StockScreener({
     Math.ceil(screenedTotal / Math.max(response?.pagination.pageSize ?? PAGE_SIZE, 1))
   );
 
+  // Non-stock tabs: same component identity, plain controls, no screener UI.
+  if (state.assetType !== "stock") {
+    return (
+      <DiscoveryControls
+        state={state}
+        pagination={pagination}
+        meta={meta}
+        etfFacets={etfFacets}
+        summary={summary}
+      >
+        {children}
+      </DiscoveryControls>
+    );
+  }
+
   return (
     <DiscoveryControls
       state={state}
@@ -474,7 +499,7 @@ export function StockScreener({
               <p id="strategy-description" className="text-xs text-stone-600">
                 {qualityReasonablePriceV1.description}
               </p>
-              <p id="strategy-exclusion" className="text-xs text-stone-500">
+              <p id="strategy-exclusion" className="text-xs text-stone-600">
                 {FINANCIAL_EXCLUSION_EXPLANATION}
               </p>
             </div>
@@ -486,7 +511,7 @@ export function StockScreener({
                 <legend className="text-sm font-medium text-stone-900">
                   Filters
                 </legend>
-                <p className="text-xs text-stone-500">
+                <p className="text-xs text-stone-600">
                   Leave a field empty to skip that filter. A stock with
                   unavailable data never passes an active filter.
                 </p>
@@ -524,7 +549,7 @@ export function StockScreener({
                         />
                         <p
                           id={`filter-${field.key}-hint`}
-                          className="text-[11px] text-stone-500"
+                          className="text-[11px] text-stone-600"
                         >
                           {field.hint}
                         </p>
@@ -629,7 +654,7 @@ export function StockScreener({
 
         {isStrategyEnabled ? (
           <div className="space-y-4">
-            <p role="status" className="min-h-5 text-xs text-stone-500">
+            <p role="status" className="min-h-5 text-xs text-stone-600">
               {isLoading
                 ? "Screening stocks…"
                 : errorMessage !== null || response === null
@@ -662,7 +687,7 @@ export function StockScreener({
                 ) : (
                   <div
                     className={
-                      isLoading ? "opacity-60 transition-opacity" : undefined
+                      isLoading ? "opacity-60 transition-opacity motion-reduce:transition-none" : undefined
                     }
                   >
                     <div className="hidden md:block">
@@ -677,14 +702,14 @@ export function StockScreener({
                 {summaryLines(response.summary).length > 0 ? (
                   <ul className="space-y-1">
                     {summaryLines(response.summary).map((line) => (
-                      <li key={line} className="text-xs text-stone-500">
+                      <li key={line} className="text-xs text-stone-600">
                         {line}
                       </li>
                     ))}
                   </ul>
                 ) : null}
 
-                <p className="text-xs text-stone-500">
+                <p className="text-xs text-stone-600">
                   A strategy match measures alignment with the strategy&apos;s
                   criteria. It does not predict future returns.
                 </p>

@@ -2,12 +2,15 @@
 
 ## Current milestone
 
-D4 — ETF and Index Discovery
+Discovery release complete (D1–D6, demo release).
 
 ## Status
 
-Complete. All required checks pass. Awaiting user review and explicit
-authorization before D5.
+**Discovery is complete as a demo release** (D1, D2, D3, D4, D6 implemented;
+D5 resolved as "stay in demo mode" by explicit user decision — see the D5
+provider decision below; SPEC §26 demo-release definition approved by the
+user on 2026-08-09 when authorizing D6). All required checks pass, including
+the end-to-end smoke suite. The next phase (Research) is proposed only.
 
 ## Completed milestones
 
@@ -15,6 +18,9 @@ authorization before D5.
 - D2 — Search, URL State, Detail Page, and Watchlist (2026-08-09)
 - D3 — Stock Screener and QARP Strategy (2026-08-09)
 - D4 — ETF and Index Discovery (2026-08-09)
+- D5 — resolved as demo mode + provider evaluation (2026-08-09; no live
+  provider selected or implemented, per user decision)
+- D6 — Discovery Quality and Release Polish (2026-08-09, demo release)
 
 ## In progress
 
@@ -118,7 +124,33 @@ authorization before D5.
 
 ## Verification
 
-D4, run on 2026-08-09 (Node 22.14.0, npm 11.11.0, Windows):
+D6 (final Discovery verification), run on 2026-08-09 (Node 22.14.0,
+npm 11.11.0, Windows):
+
+- `npm run lint` — pass. `npm run typecheck` — pass. `npm run build` — pass.
+- `npm run test` — pass: 17 files, 603 unit tests (9 new filter-chips tests).
+- `npm run test:e2e` — pass: 55 passed, 7 intentionally skipped (mobile-only
+  specs skipped on desktop and vice versa), 0 failed, across chromium and
+  Pixel 7 projects. Covers the SPEC §20.7 13-step smoke flow, keyboard
+  navigation (skip link, arrow-key tabs, watchlist toggle, pagination, filter
+  form), mobile behavior (cards not table, no horizontal scroll, filter
+  disclosure, count badge), and accessibility basics (single h1, labeled
+  controls, aria-current nav, chips, clear-all).
+- D6 changes: filter-summary chips with per-chip remove and clear-all
+  (URL-driven); mobile ETF filter disclosure (fields unmounted when
+  collapsed); skip-to-content link; aria-current nav; motion-reduce
+  transition suppression (16 sites); contrast bump stone-500→stone-600 for
+  informational text (31 sites); error state promises preserved filters and
+  watchlist; watchlist unavailable-instrument note; Playwright added as the
+  D6-authorized e2e dependency.
+- A11y bug found by the e2e suite and fixed: arrow-keying across the Stocks
+  tab boundary dropped keyboard focus because the tab subtree remounted
+  (element type changed between StockScreener and DiscoveryControls per
+  tab). Fixed by rendering StockScreener for every tab with an internal
+  non-stock passthrough, keeping the element identity stable. The regression
+  is locked by an active e2e test.
+
+D4 verification history:
 
 - `npm run lint` — pass. `npm run typecheck` — pass. `npm run build` — pass.
 - `npm run test` — pass: 16 files, 594 tests, 0 failures (161 new D4 tests:
@@ -208,9 +240,11 @@ Key evaluation findings recorded for future D5 work:
 
 ## Next proposed milestone
 
-D6 — Discovery Quality and Release Polish (as a demo release; SPEC §26
-requires explicit user approval to define Discovery as complete without a
-live provider).
+Phase R — Research and "What Changed?" (SPEC §25): filing ingestion,
+period comparison, evidence-grounded research summaries, and the first
+runtime Claude integration. Alternatively, live-provider D5 work can be
+resumed at any time by selecting a provider (evaluation notes are ready
+under `docs/references/`).
 
-D6 is proposed only. It is not authorized until the user explicitly
-approves it.
+The Research phase is proposed only. It is not authorized until the user
+explicitly approves it.

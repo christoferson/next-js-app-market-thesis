@@ -1,9 +1,6 @@
 import { listDiscoveryInstruments } from "@/lib/discovery/service";
 import { parseDiscoveryUrlState } from "@/lib/discovery/url-state";
-import {
-  DiscoveryControls,
-  type EtfFacets,
-} from "@/components/discovery/discovery-controls";
+import type { EtfFacets } from "@/components/discovery/discovery-controls";
 import { ResultsTable } from "@/components/discovery/results-table";
 import { ResultCards } from "@/components/discovery/result-cards";
 import { StockScreener } from "@/components/screener/stock-screener";
@@ -125,17 +122,16 @@ export default async function DiscoverPage({
         </p>
       </div>
 
-      {state.assetType === "stock" ? (
-        <StockScreener {...controlsProps}>{results}</StockScreener>
-      ) : (
-        <DiscoveryControls
-          {...controlsProps}
-          etfFacets={etfFacets}
-          summary={summary}
-        >
-          {results}
-        </DiscoveryControls>
-      )}
+      {/* StockScreener renders every tab (plain controls on non-stock tabs)
+          so the element type here never changes — a type swap would remount
+          the tablist and drop keyboard focus during arrow navigation. */}
+      <StockScreener
+        {...controlsProps}
+        etfFacets={etfFacets}
+        summary={summary}
+      >
+        {results}
+      </StockScreener>
     </div>
   );
 }

@@ -76,7 +76,7 @@ export function AssetTabs({ value, onChange }: AssetTabsProps) {
             tabIndex={isSelected ? 0 : -1}
             onClick={() => onChange(tab.assetType)}
             onKeyDown={handleKeyDown}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 ${
+            className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 ${
               isSelected
                 ? "border-stone-800 font-semibold text-stone-900"
                 : "border-transparent font-normal text-stone-600 hover:text-stone-900"

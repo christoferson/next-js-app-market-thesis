@@ -1,0 +1,257 @@
+import type { IndexSnapshot } from "@/lib/domain";
+import { DEMO_AS_OF_DATE, DEMO_PROVENANCE, demoMetric, missingMetric } from "./shared";
+
+/**
+ * Fictional demo indices. An index is a reference benchmark, not a security:
+ * `isTradable` is always false, `quote.price` holds a level (never a share
+ * price), and `marketCap` / `averageVolume` are null because they do not apply.
+ *
+ * `instrument.currency` records the currency the level is denominated against
+ * for reference only — the UI must label the value "Level" and must not format
+ * it as money.
+ */
+export const demoIndices: readonly IndexSnapshot[] = [
+  // ---------------------------------------------------------------- United States
+  {
+    assetType: "index",
+    instrument: {
+      id: "index-us-demo-500",
+      assetType: "index",
+      symbol: "DMO500.DEMO",
+      name: "US Demo 500 Index",
+      listingMarket: "US",
+      exchangeCode: "XDMO",
+      exchangeName: "US Demo Exchange",
+      currency: "USD",
+      countryCode: "US",
+      isTradable: false,
+      isActive: true,
+      providerSymbol: "DMO500.DEMO",
+    },
+    quote: {
+      instrumentId: "index-us-demo-500",
+      price: 4_832.19,
+      previousClose: 4_806.44,
+      dayChange: 25.75,
+      dayChangePercent: 0.0054,
+      fiftyTwoWeekHigh: 4_961.08,
+      fiftyTwoWeekLow: 3_988.62,
+      marketCap: null,
+      averageVolume: null,
+      currency: "USD",
+      asOf: DEMO_AS_OF_DATE,
+    },
+    provenance: DEMO_PROVENANCE,
+    metrics: {
+      oneMonthReturn: demoMetric(0.021),
+      yearToDateReturn: demoMetric(0.094),
+      oneYearReturn: demoMetric(0.142),
+      constituentCount: demoMetric(500, "Current"),
+      methodologySummary:
+        "Float-adjusted market-capitalization weighted measure of 500 large US demo companies. Rebalanced quarterly.",
+    },
+  },
+  {
+    assetType: "index",
+    instrument: {
+      id: "index-us-demo-technology-100",
+      assetType: "index",
+      symbol: "DMOTECH.DEMO",
+      name: "US Demo Technology 100 Index",
+      listingMarket: "US",
+      exchangeCode: "XDMO",
+      exchangeName: "US Demo Exchange",
+      currency: "USD",
+      countryCode: "US",
+      isTradable: false,
+      isActive: true,
+      providerSymbol: "DMOTECH.DEMO",
+    },
+    quote: {
+      instrumentId: "index-us-demo-technology-100",
+      price: 16_284.73,
+      previousClose: 16_402.55,
+      dayChange: -117.82,
+      dayChangePercent: -0.0072,
+      fiftyTwoWeekHigh: 16_940.21,
+      fiftyTwoWeekLow: 12_106.48,
+      marketCap: null,
+      averageVolume: null,
+      currency: "USD",
+      asOf: DEMO_AS_OF_DATE,
+    },
+    provenance: DEMO_PROVENANCE,
+    metrics: {
+      oneMonthReturn: demoMetric(-0.014),
+      yearToDateReturn: demoMetric(0.128),
+      oneYearReturn: demoMetric(0.216),
+      constituentCount: demoMetric(100, "Current"),
+      methodologySummary:
+        "Modified market-capitalization weighted measure of 100 large US demo technology and communication companies. Weight caps applied at each rebalance.",
+    },
+  },
+  {
+    assetType: "index",
+    instrument: {
+      id: "index-us-demo-smallcap-600",
+      assetType: "index",
+      symbol: "DMOSML.DEMO",
+      name: "US Demo Small Cap 600 Index",
+      listingMarket: "US",
+      exchangeCode: "XDMO",
+      exchangeName: "US Demo Exchange",
+      currency: "USD",
+      countryCode: "US",
+      isTradable: false,
+      isActive: true,
+      providerSymbol: "DMOSML.DEMO",
+    },
+    quote: {
+      instrumentId: "index-us-demo-smallcap-600",
+      price: 1_248.66,
+      previousClose: 1_244.9,
+      dayChange: 3.76,
+      dayChangePercent: 0.003,
+      fiftyTwoWeekHigh: 1_312.04,
+      fiftyTwoWeekLow: 1_042.18,
+      marketCap: null,
+      averageVolume: null,
+      currency: "USD",
+      asOf: DEMO_AS_OF_DATE,
+    },
+    provenance: DEMO_PROVENANCE,
+    metrics: {
+      oneMonthReturn: demoMetric(0.008),
+      yearToDateReturn: demoMetric(0.032),
+      // Missing 1Y return edge case — the series was restated in this demo dataset.
+      oneYearReturn: missingMetric(
+        "Twelve-month history unavailable: the demo series was restated in March 2026."
+      ),
+      constituentCount: demoMetric(600, "Current"),
+      methodologySummary:
+        "Market-capitalization weighted measure of 600 smaller US demo companies meeting demo liquidity screens.",
+    },
+  },
+
+  // ------------------------------------------------------------------------ Japan
+  {
+    assetType: "index",
+    instrument: {
+      id: "index-jp-tokyo-demo-225",
+      assetType: "index",
+      symbol: "0225.DEMO",
+      name: "Tokyo Demo 225 Index",
+      nativeName: "東京デモ225種平均株価指数",
+      listingMarket: "JP",
+      exchangeCode: "XTKD",
+      exchangeName: "Tokyo Demo Exchange",
+      currency: "JPY",
+      countryCode: "JP",
+      isTradable: false,
+      isActive: true,
+      providerSymbol: "0225.DEMO",
+    },
+    quote: {
+      instrumentId: "index-jp-tokyo-demo-225",
+      price: 38_412.58,
+      previousClose: 38_196.04,
+      dayChange: 216.54,
+      dayChangePercent: 0.0057,
+      fiftyTwoWeekHigh: 40_118.92,
+      fiftyTwoWeekLow: 31_244.76,
+      marketCap: null,
+      averageVolume: null,
+      currency: "JPY",
+      asOf: DEMO_AS_OF_DATE,
+    },
+    provenance: DEMO_PROVENANCE,
+    metrics: {
+      oneMonthReturn: demoMetric(0.018),
+      yearToDateReturn: demoMetric(0.076),
+      oneYearReturn: demoMetric(0.118),
+      constituentCount: demoMetric(225, "Current"),
+      methodologySummary:
+        "Price-weighted measure of 225 selected Tokyo Demo Exchange companies. Constituents reviewed annually.",
+    },
+  },
+  {
+    assetType: "index",
+    instrument: {
+      id: "index-jp-tokyo-demo-composite",
+      assetType: "index",
+      symbol: "0100.DEMO",
+      name: "Tokyo Demo Composite Index",
+      nativeName: "東京デモ総合株価指数",
+      listingMarket: "JP",
+      exchangeCode: "XTKD",
+      exchangeName: "Tokyo Demo Exchange",
+      currency: "JPY",
+      countryCode: "JP",
+      isTradable: false,
+      isActive: true,
+      providerSymbol: "0100.DEMO",
+    },
+    quote: {
+      instrumentId: "index-jp-tokyo-demo-composite",
+      price: 2_764.31,
+      previousClose: 2_771.88,
+      dayChange: -7.57,
+      dayChangePercent: -0.0027,
+      fiftyTwoWeekHigh: 2_884.5,
+      fiftyTwoWeekLow: 2_282.14,
+      marketCap: null,
+      averageVolume: null,
+      currency: "JPY",
+      asOf: DEMO_AS_OF_DATE,
+    },
+    provenance: DEMO_PROVENANCE,
+    metrics: {
+      oneMonthReturn: demoMetric(0.012),
+      yearToDateReturn: demoMetric(0.069),
+      oneYearReturn: demoMetric(0.104),
+      constituentCount: demoMetric(2_148, "Current"),
+      methodologySummary:
+        "Free-float market-capitalization weighted measure of all domestic common shares on the Tokyo Demo Exchange.",
+    },
+  },
+  {
+    assetType: "index",
+    instrument: {
+      id: "index-jp-tokyo-demo-growth-250",
+      assetType: "index",
+      symbol: "0250.DEMO",
+      name: "Tokyo Demo Growth 250 Index",
+      nativeName: "東京デモ・グロース250指数",
+      listingMarket: "JP",
+      exchangeCode: "XTKD",
+      exchangeName: "Tokyo Demo Exchange",
+      currency: "JPY",
+      countryCode: "JP",
+      isTradable: false,
+      isActive: true,
+      providerSymbol: "0250.DEMO",
+    },
+    quote: {
+      instrumentId: "index-jp-tokyo-demo-growth-250",
+      price: 742.86,
+      previousClose: 750.62,
+      dayChange: -7.76,
+      dayChangePercent: -0.0103,
+      fiftyTwoWeekHigh: 892.4,
+      fiftyTwoWeekLow: 688.15,
+      marketCap: null,
+      averageVolume: null,
+      currency: "JPY",
+      asOf: DEMO_AS_OF_DATE,
+    },
+    provenance: DEMO_PROVENANCE,
+    metrics: {
+      oneMonthReturn: demoMetric(-0.026),
+      yearToDateReturn: demoMetric(-0.048),
+      oneYearReturn: demoMetric(-0.092),
+      constituentCount: demoMetric(250, "Current"),
+      methodologySummary:
+        "Free-float market-capitalization weighted measure of 250 emerging-growth companies on the Tokyo Demo Exchange growth segment.",
+    },
+  },
+];

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   assertNever,
   type EtfSnapshot,
@@ -17,6 +19,7 @@ import {
   formatSignedPercent,
   MISSING_DISPLAY,
 } from "@/lib/format";
+import { WatchlistButton } from "@/components/watchlist/watchlist-button";
 
 const NOT_TRADABLE_NOTE = "Reference index — not directly tradable";
 
@@ -49,10 +52,17 @@ function MarketCell({ snapshot }: { snapshot: InstrumentSnapshot }) {
   );
 }
 
+/**
+ * The row stays non-interactive; only the identity cell links to the detail
+ * page, so keyboard users get one predictable target per row.
+ */
 function InstrumentIdentity({ snapshot }: { snapshot: InstrumentSnapshot }) {
-  const { symbol, name, nativeName } = snapshot.instrument;
+  const { id, symbol, name, nativeName } = snapshot.instrument;
   return (
-    <div className="space-y-0.5">
+    <Link
+      href={`/discover/${id}`}
+      className="block space-y-0.5 rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+    >
       <div className="font-semibold text-stone-900">{symbol}</div>
       <div className="text-stone-700">{name}</div>
       {nativeName ? (
@@ -60,7 +70,30 @@ function InstrumentIdentity({ snapshot }: { snapshot: InstrumentSnapshot }) {
           {nativeName}
         </div>
       ) : null}
-    </div>
+    </Link>
+  );
+}
+
+function WatchlistHeadCell() {
+  return (
+    <th scope="col" className={HEAD_CELL_CLASS}>
+      <span className="sr-only">Watchlist</span>
+    </th>
+  );
+}
+
+function WatchlistCell({ snapshot }: { snapshot: InstrumentSnapshot }) {
+  const { id, symbol, name, assetType } = snapshot.instrument;
+  return (
+    <td className={`${CELL_CLASS} text-right`}>
+      <WatchlistButton
+        instrumentId={id}
+        symbol={symbol}
+        name={name}
+        assetType={assetType}
+        size="row"
+      />
+    </td>
   );
 }
 
@@ -98,6 +131,7 @@ function StocksTable({ snapshots }: { snapshots: readonly StockSnapshot[] }) {
           <th scope="col" className={NUMERIC_HEAD_CELL_CLASS}>
             ROE
           </th>
+          <WatchlistHeadCell />
         </tr>
       </thead>
       <tbody>
@@ -131,6 +165,7 @@ function StocksTable({ snapshots }: { snapshots: readonly StockSnapshot[] }) {
             <td className={NUMERIC_CELL_CLASS}>
               {formatPercent(snapshot.metrics.returnOnEquity.value)}
             </td>
+            <WatchlistCell snapshot={snapshot} />
           </tr>
         ))}
       </tbody>
@@ -172,6 +207,7 @@ function EtfsTable({ snapshots }: { snapshots: readonly EtfSnapshot[] }) {
           <th scope="col" className={HEAD_CELL_CLASS}>
             Exposure
           </th>
+          <WatchlistHeadCell />
         </tr>
       </thead>
       <tbody>
@@ -226,6 +262,7 @@ function EtfsTable({ snapshots }: { snapshots: readonly EtfSnapshot[] }) {
                   ? metrics.exposureRegions.join(", ")
                   : MISSING_DISPLAY}
               </td>
+              <WatchlistCell snapshot={snapshot} />
             </tr>
           );
         })}
@@ -293,6 +330,7 @@ function IndicesTable({ snapshots }: { snapshots: readonly IndexSnapshot[] }) {
           <th scope="col" className={HEAD_CELL_CLASS}>
             As Of
           </th>
+          <WatchlistHeadCell />
         </tr>
       </thead>
       <tbody>
@@ -317,6 +355,7 @@ function IndicesTable({ snapshots }: { snapshots: readonly IndexSnapshot[] }) {
             <td className={CELL_CLASS}>
               {formatDate(snapshot.quote?.asOf ?? null)}
             </td>
+            <WatchlistCell snapshot={snapshot} />
           </tr>
         ))}
       </tbody>

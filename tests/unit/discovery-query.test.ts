@@ -158,6 +158,76 @@ describe("parseDiscoveryQuery failure shape", () => {
   });
 });
 
+describe("parseDiscoveryQuery search query param", () => {
+  it("leaves query undefined when the param is absent", () => {
+    const result = parse("assetType=stock");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.query).toBeUndefined();
+  });
+
+  it("includes a trimmed query on success", () => {
+    const result = parseDiscoveryQuery(
+      new URLSearchParams({ query: "  spaced  " })
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.query).toBe("spaced");
+  });
+
+  it("reduces a whitespace-only query to an empty string", () => {
+    const result = parseDiscoveryQuery(new URLSearchParams({ query: "   " }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.query).toBe("");
+  });
+
+  it("passes a symbol query through alongside the other params", () => {
+    const result = parse("assetType=stock&market=US&query=NST.DEMO&page=2");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query).toEqual({
+      assetType: "stock",
+      market: "US",
+      query: "NST.DEMO",
+      page: 2,
+      pageSize: 25,
+    });
+  });
+
+  it("preserves a Japanese native-name query", () => {
+    const result = parseDiscoveryQuery(new URLSearchParams({ query: "サクラ" }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.query).toBe("サクラ");
+  });
+
+  it("accepts a query of exactly 100 characters", () => {
+    const result = parseDiscoveryQuery(
+      new URLSearchParams({ query: "a".repeat(100) })
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.query).toBe("a".repeat(100));
+  });
+
+  it("rejects a 101-character query rather than truncating it", () => {
+    const result = parseDiscoveryQuery(
+      new URLSearchParams({ query: "a".repeat(101) })
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.details.query).toBeDefined();
+  });
+});
+
 describe("parseDiscoveryQuery unknown parameters", () => {
   it("ignores unknown params while honouring known ones", () => {
     const result = parse("foo=bar&assetType=etf");

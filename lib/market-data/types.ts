@@ -9,6 +9,8 @@ export interface InstrumentQuery {
   assetType: AssetType;
   /** Omitted market means all supported markets. */
   market?: SupportedMarket;
+  /** Free-text search over symbol, English name, and native name. */
+  query?: string;
 
   page: number;
   pageSize: number;
@@ -33,4 +35,7 @@ export interface MarketDataProvider {
   listInstruments(
     query: InstrumentQuery
   ): Promise<PaginatedResult<InstrumentSnapshot>>;
+
+  /** Returns the snapshot for a stable instrument ID, or null when unknown. */
+  getInstrument(instrumentId: string): Promise<InstrumentSnapshot | null>;
 }

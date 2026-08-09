@@ -5,6 +5,7 @@ import type {
   PaginatedResult,
 } from "@/lib/market-data/types";
 import { filterByAssetType, filterByMarket, paginate } from "./filters";
+import { searchSnapshots } from "./search";
 import { getDemoSnapshots } from "@/data/demo";
 
 export const DEMO_PROVIDER_ID = "demo";
@@ -24,7 +25,16 @@ export function createDemoMarketDataProvider(): MarketDataProvider {
     ): Promise<PaginatedResult<InstrumentSnapshot>> {
       const byAsset = filterByAssetType(getDemoSnapshots(), query.assetType);
       const byMarket = filterByMarket(byAsset, query.market);
-      return paginate(byMarket, query.page, query.pageSize);
+      const searched = searchSnapshots(byMarket, query.query);
+      return paginate(searched, query.page, query.pageSize);
+    },
+
+    async getInstrument(
+      instrumentId: string
+    ): Promise<InstrumentSnapshot | null> {
+      return (
+        getDemoSnapshots().find((s) => s.instrument.id === instrumentId) ?? null
+      );
     },
   };
 }

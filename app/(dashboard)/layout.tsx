@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const NAV_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/discover", label: "Discover" },
+  { href: "/watchlist", label: "Watchlist" },
   { href: "/about", label: "About" },
 ];
 

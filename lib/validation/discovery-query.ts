@@ -9,6 +9,16 @@ import { z } from "zod";
 export const discoveryQuerySchema = z.object({
   assetType: z.enum(["stock", "etf", "index"]).default("stock"),
   market: z.enum(["US", "JP"]).optional(),
+  /**
+   * Trimmed free-text search. An empty query means "no search filter".
+   * Trim before the length check so surrounding whitespace never causes a
+   * rejection the UI's own URL state (which trims first) would not produce.
+   */
+  query: z
+    .string()
+    .transform((value) => value.trim())
+    .pipe(z.string().max(100))
+    .optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
@@ -35,7 +45,13 @@ export function parseDiscoveryQuery(
   searchParams: URLSearchParams
 ): QueryValidationResult {
   const raw: Record<string, string> = {};
-  for (const key of ["assetType", "market", "page", "pageSize"] as const) {
+  for (const key of [
+    "assetType",
+    "market",
+    "query",
+    "page",
+    "pageSize",
+  ] as const) {
     const value = searchParams.get(key);
     if (value !== null) {
       raw[key] = value;

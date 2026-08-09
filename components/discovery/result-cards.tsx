@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { assertNever, type InstrumentSnapshot } from "@/lib/domain";
 import {
   formatCompactCurrency,
@@ -9,6 +11,7 @@ import {
   formatPercent,
   formatRatio,
 } from "@/lib/format";
+import { WatchlistButton } from "@/components/watchlist/watchlist-button";
 
 const ASSET_TYPE_LABEL: Record<InstrumentSnapshot["assetType"], string> = {
   stock: "Stock",
@@ -86,7 +89,10 @@ function ResultCard({ snapshot }: { snapshot: InstrumentSnapshot }) {
   return (
     <li className="rounded-md border border-stone-200 bg-white p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="space-y-0.5">
+        <Link
+          href={`/discover/${instrument.id}`}
+          className="block space-y-0.5 rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
+        >
           <p className="font-semibold text-stone-900">{instrument.symbol}</p>
           <p className="text-sm text-stone-700">{instrument.name}</p>
           {instrument.nativeName ? (
@@ -94,10 +100,19 @@ function ResultCard({ snapshot }: { snapshot: InstrumentSnapshot }) {
               {instrument.nativeName}
             </p>
           ) : null}
+        </Link>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <span className="rounded-sm border border-stone-300 px-1.5 py-0.5 text-[11px] text-stone-600">
+            {ASSET_TYPE_LABEL[snapshot.assetType]}
+          </span>
+          <WatchlistButton
+            instrumentId={instrument.id}
+            symbol={instrument.symbol}
+            name={instrument.name}
+            assetType={instrument.assetType}
+            size="row"
+          />
         </div>
-        <span className="shrink-0 rounded-sm border border-stone-300 px-1.5 py-0.5 text-[11px] text-stone-600">
-          {ASSET_TYPE_LABEL[snapshot.assetType]}
-        </span>
       </div>
 
       <p className="mt-2 text-xs text-stone-500">

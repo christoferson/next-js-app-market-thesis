@@ -28,6 +28,11 @@ export interface DiscoveryControlsProps {
   };
   /** Server-rendered results (tables/cards) for the current URL state. */
   children: React.ReactNode;
+  /**
+   * When true the child renders its own result set, count and pagination
+   * (D3 screener), so the URL-driven list count and pager are suppressed.
+   */
+  childOwnsResults?: boolean;
 }
 
 /**
@@ -40,6 +45,7 @@ export function DiscoveryControls({
   pagination,
   meta,
   children,
+  childOwnsResults = false,
 }: DiscoveryControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -136,7 +142,9 @@ export function DiscoveryControls({
         <MarketSelector value={state.market} onChange={handleMarketChange} />
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
-          <span>{`${pagination.total} results`}</span>
+          {childOwnsResults ? null : (
+            <span>{`${pagination.total} results`}</span>
+          )}
           <span>{`As of ${formatDate(meta.asOf)}`}</span>
           {meta.isDemo ? (
             <span className="rounded-sm border border-stone-300 px-1.5 py-0.5 text-stone-600">
@@ -162,7 +170,7 @@ export function DiscoveryControls({
           {children}
         </div>
 
-        {pagination.total > 0 || pagination.page > 1 ? (
+        {!childOwnsResults && (pagination.total > 0 || pagination.page > 1) ? (
           <Pagination
             page={pagination.page}
             totalPages={totalPages}

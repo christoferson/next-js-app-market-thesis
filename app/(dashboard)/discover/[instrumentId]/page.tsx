@@ -17,6 +17,17 @@ import {
 import { getDiscoveryInstrument } from "@/lib/discovery/service";
 import { MarketDataError } from "@/lib/market-data/errors";
 import {
+  FINANCIAL_EXCLUSION_EXPLANATION,
+  evaluateStrategy,
+  isEligibleForStrategy,
+} from "@/lib/screener/evaluate";
+import { explainMatch } from "@/lib/screener/explain";
+import {
+  getStrategy,
+  versionedStrategyId,
+} from "@/lib/screener/strategies/registry";
+import type { StockMetricId, StrategyScore } from "@/lib/screener/types";
+import {
   formatCompactCurrency,
   formatCompactNumber,
   formatCurrency,
@@ -414,6 +425,7 @@ function TradableOverview({
 function StockSections({ snapshot }: { snapshot: StockSnapshot }) {
   return (
     <>
+      <StrategyMatchSections snapshot={snapshot} />
       <TradableOverview snapshot={snapshot} />
       <Section title="Key Metrics">
         <MetricGrid
@@ -589,6 +601,236 @@ function AssetSections({ snapshot }: { snapshot: InstrumentSnapshot }) {
     default:
       return assertNever(snapshot);
   }
+}
+
+/* ------------------------------------------------------------ strategy match */
+
+const STRATEGY_ID = "quality-reasonable-price-v1";
+const SCORE_MEANING_NOTE =
+  "This score measures alignment with the selected strategy's criteria. It " +
+  "does not predict future returns.";
+
+/** Metrics stored as decimals display as percentages; the rest as ratios. */
+const PERCENT_METRIC_IDS: ReadonlySet<StockMetricId> = new Set<StockMetricId>([
+  "revenueGrowth",
+  "epsGrowth",
+  "returnOnEquity",
+  "operatingMargin",
+  "freeCashFlowMargin",
+  "freeCashFlowYield",
+  "dividendYield",
+  "shareCountCagr3Y",
+]);
+
+function formatRuleValue(metricId: StockMetricId, value: number | null): string {
+  return PERCENT_METRIC_IDS.has(metricId)
+    ? formatPercent(value)
+    : formatRatio(value);
+}
+
+const SCORE_TABLE_CLASS = "w-full border-collapse text-sm";
+const SCORE_HEAD_CELL_CLASS =
+  "border-b border-stone-300 px-3 py-2 text-left align-bottom text-xs font-medium tracking-wide text-stone-600 uppercase";
+const SCORE_NUMERIC_HEAD_CELL_CLASS = `${SCORE_HEAD_CELL_CLASS} text-right`;
+const SCORE_CELL_CLASS = "border-b border-stone-200 px-3 py-2 align-top text-stone-800";
+const SCORE_NUMERIC_CELL_CLASS = `${SCORE_CELL_CLASS} text-right tabular-nums`;
+
+function StrategyScoreHeadline({ score }: { score: StrategyScore }) {
+  if (score.total === null) {
+    return (
+      <div className="space-y-1">
+        <p className="text-xl text-stone-900">Insufficient Data</p>
+        <p className="text-sm text-stone-600">
+          {`Data completeness: ${formatRatio(score.availableWeight, 0)}/100. `}
+          Too many of the strategy&apos;s metrics are unavailable to produce a
+          score. Unavailable data is never treated as zero.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-3">
+      <p className="text-xl text-stone-900 tabular-nums">
+        {`${formatRatio(score.total, 1)} / 100`}
+      </p>
+      {score.label === null ? null : (
+        <span className="rounded-sm border border-stone-300 bg-stone-50 px-2 py-0.5 text-sm text-stone-700">
+          {score.label}
+        </span>
+      )}
+      <span className="text-xs text-stone-500">
+        {`Data completeness: ${formatRatio(score.availableWeight, 0)}/100`}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The full breakdown: every category, then every rule inside it, with the
+ * points it earned out of its weight. An unavailable rule shows an em dash and
+ * its reason — it earns no points and adds no available weight.
+ */
+function StrategyBreakdown({ score }: { score: StrategyScore }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className={SCORE_TABLE_CLASS}>
+        <caption className="sr-only">
+          Strategy score breakdown by category and rule. Points earned are shown
+          against the available and maximum points for each category, and against
+          each rule&apos;s weight. Unavailable metrics show an em dash and a
+          reason.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" className={SCORE_HEAD_CELL_CLASS}>
+              Category
+            </th>
+            <th scope="col" className={SCORE_NUMERIC_HEAD_CELL_CLASS}>
+              Points
+            </th>
+            <th scope="col" className={SCORE_NUMERIC_HEAD_CELL_CLASS}>
+              Available
+            </th>
+            <th scope="col" className={SCORE_NUMERIC_HEAD_CELL_CLASS}>
+              Max
+            </th>
+          </tr>
+        </thead>
+        {score.categories.map((category) => (
+          <tbody key={category.categoryId}>
+            <tr className="bg-stone-50">
+              <th
+                scope="row"
+                className={`${SCORE_CELL_CLASS} text-left font-semibold text-stone-900`}
+              >
+                {category.label}
+              </th>
+              <td className={`${SCORE_NUMERIC_CELL_CLASS} font-semibold`}>
+                {formatRatio(category.earnedPoints, 1)}
+              </td>
+              <td className={SCORE_NUMERIC_CELL_CLASS}>
+                {formatRatio(category.availableWeight, 0)}
+              </td>
+              <td className={SCORE_NUMERIC_CELL_CLASS}>
+                {formatRatio(category.maximumPoints, 0)}
+              </td>
+            </tr>
+            {category.rules.map((rule) => (
+              <tr key={rule.ruleId}>
+                <th
+                  scope="row"
+                  className={`${SCORE_CELL_CLASS} pl-6 text-left font-normal`}
+                >
+                  <span className="text-stone-700">{rule.label}</span>
+                  {rule.points === null ? (
+                    <span className="block text-[11px] text-stone-500">
+                      {rule.unavailableReason ?? NO_REASON_FALLBACK}
+                    </span>
+                  ) : (
+                    <span className="block text-[11px] text-stone-500">
+                      {formatRuleValue(rule.metricId, rule.value)}
+                    </span>
+                  )}
+                </th>
+                <td className={SCORE_NUMERIC_CELL_CLASS}>
+                  {rule.points === null
+                    ? MISSING_DISPLAY
+                    : `${formatRatio(rule.points, 1)} / ${formatRatio(rule.weight, 0)}`}
+                </td>
+                <td className={SCORE_NUMERIC_CELL_CLASS}>
+                  {rule.points === null
+                    ? MISSING_DISPLAY
+                    : formatRatio(rule.weight, 0)}
+                </td>
+                <td className={SCORE_NUMERIC_CELL_CLASS}>
+                  {formatRatio(rule.weight, 0)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+    </div>
+  );
+}
+
+function ReasonList({
+  items,
+  emptyMessage,
+}: {
+  items: readonly string[];
+  emptyMessage: string;
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-stone-600">{emptyMessage}</p>;
+  }
+  return (
+    <ul className="space-y-1.5">
+      {items.map((item) => (
+        <li key={item} className="text-sm text-stone-700">
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Stock-only strategy sections, computed server-side from the same pure
+ * functions the screener API uses — no client fetch and no duplicated
+ * formulas. ETFs and indices never reach this component: the strategy scores
+ * ordinary operating companies only.
+ */
+function StrategyMatchSections({ snapshot }: { snapshot: StockSnapshot }) {
+  const strategy = getStrategy(STRATEGY_ID);
+  if (strategy === null) {
+    return null;
+  }
+
+  const versionLine = `Strategy version ${strategy.version} — ${versionedStrategyId(strategy)}`;
+
+  if (!isEligibleForStrategy(snapshot, strategy)) {
+    return (
+      <Section title="Strategy Match">
+        <p className="text-sm text-stone-700">
+          {`${strategy.displayName} does not cover this stock, so it is not scored.`}
+        </p>
+        <p className="text-sm text-stone-600">
+          {FINANCIAL_EXCLUSION_EXPLANATION}
+        </p>
+        <p className={PERIOD_CLASS}>{versionLine}</p>
+      </Section>
+    );
+  }
+
+  const score = evaluateStrategy(snapshot, strategy);
+  const explanation = explainMatch(score, null);
+
+  return (
+    <>
+      <Section title="Strategy Match">
+        <StrategyScoreHeadline score={score} />
+        <p className="text-sm text-stone-600">{SCORE_MEANING_NOTE}</p>
+        <p className={PERIOD_CLASS}>{versionLine}</p>
+        <StrategyBreakdown score={score} />
+      </Section>
+
+      <Section title="Why It Matched">
+        <ReasonList
+          items={explanation.positiveReasons}
+          emptyMessage="No criteria were strongly met."
+        />
+      </Section>
+
+      <Section title="Potential Concerns">
+        <ReasonList
+          items={explanation.concerns}
+          emptyMessage="No significant concerns from the strategy's criteria."
+        />
+      </Section>
+    </>
+  );
 }
 
 /* ---------------------------------------------------------- provenance box */

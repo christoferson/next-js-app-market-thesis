@@ -2,17 +2,18 @@
 
 ## Current milestone
 
-D2 — Search, URL State, Detail Page, and Watchlist
+D3 — Stock Screener and QARP Strategy
 
 ## Status
 
 Complete. All required checks pass. Awaiting user review and explicit
-authorization before D3.
+authorization before D4.
 
 ## Completed milestones
 
 - D1 — Foundation and Demo Discovery (2026-08-09)
 - D2 — Search, URL State, Detail Page, and Watchlist (2026-08-09)
+- D3 — Stock Screener and QARP Strategy (2026-08-09)
 
 ## In progress
 
@@ -75,44 +76,73 @@ authorization before D3.
 - Subagent review fixes applied to core: API query trim now happens before
   the 100-char limit (matching URL-state behavior), and the URL-state clamp
   is code-point-aware so it cannot split a surrogate pair.
+- D3: QARP v1 formulas implemented exactly per SPEC §11 in
+  `lib/screener/strategies/quality-reasonable-price-v1.ts`; scoring flows
+  through two pure interpolation functions in `lib/screener/score.ts`.
+- Screening runs entirely server-side. The screen request schema is strict:
+  unknown filters, unknown fields, and score-injection attempts are rejected
+  with 400. Scores are recalculated on every request.
+- The screener obtains its stock universe through the provider boundary
+  (`provider.listInstruments`), not by importing fixtures — a D5 live
+  provider slots in behind the same interface.
+- Zero P/E is treated as unavailable for scoring (same as negative) — a
+  deliberate extension of SPEC §11.4's "negative or unavailable".
+- A present-but-negative P/E under an active `maximumPeRatio` filter is
+  classified as failed (known value that fails the bound), while a null P/E
+  is classified as unavailable; both are non-passing per SPEC §10.5.
+- Strategy/filter/sort state on the Stocks tab is client-side state in D3,
+  not URL state (recorded limitation; extending URL state is D4+ work if
+  desired). The default (strategy off) Stocks view remains the D2 URL-driven
+  list.
+- Screener UI wraps the existing DiscoveryControls (one `childOwnsResults`
+  prop added) rather than duplicating tab/search/market controls.
 
 ## Verification
 
-D2, run on 2026-08-09 (Node 22.14.0, npm 11.11.0, Windows):
+D3, run on 2026-08-09 (Node 22.14.0, npm 11.11.0, Windows):
 
 - `npm run lint` — pass (no warnings or errors).
 - `npm run typecheck` — pass (strict mode, zero errors).
-- `npm run test` — pass: 9 files, 248 tests, 0 failures.
-- `npm run build` — pass: `/discover` now dynamic (searchParams);
-  `/discover/[instrumentId]`, `/watchlist`, and the detail API route present.
+- `npm run test` — pass: 14 files, 433 tests, 0 failures. Includes 185 D3
+  tests: interpolation boundary values, clamping, missing-metric weights,
+  the 70% insufficient-data threshold, label bands (80/65/50), eligibility,
+  all six filters against passing/failing/missing values, explanation
+  determinism, and strict request validation.
+- `npm run build` — pass: `/api/discovery/screen` route present.
 - Production smoke test (`npm run start`):
-  - `/api/discovery/instruments?query=sakura` → Sakura Automation first.
-  - Detail API: known ID → 200 with snapshot; unknown ID → 404 `NOT_FOUND`;
-    malformed ID → 400 `INVALID_REQUEST`.
-  - `/discover?asset=etf&market=JP` server-renders only JP ETFs.
-  - `/discover?q=サクラ` (native-name search) finds Sakura Automation.
-  - ETF detail page renders Fund Details, Cost and Size, Risk
-    Characteristics, and Data Availability sections.
-  - `/watchlist` renders with the browser-local storage explanation.
-- D1 verification results (103 tests, all checks passing) are preserved in
-  git history; the D1 suite is a subset of the current suite.
+  - Default screen: 10 eligible stocks (2 Financials excluded), top result
+    6702.DEMO at 77.8 "Match" with correct category breakdown
+    (Quality 22.1/30, Growth 16.6/20, Valuation 14.1/25, Health 15/15,
+    Alignment 10/10).
+  - Unknown filter (`minimumMomentum`) → 400 with field detail.
+  - Score-injection attempt (`score: 100` in body) → 400 (strict schema).
+  - `maximumPeRatio: 25` + `positiveFreeCashFlowOnly` → 6 results,
+    1 excluded for missing data, 3 filtered out — missing data never passes.
+  - Stock detail pages show Strategy Match with version line, category/rule
+    breakdown, Why It Matched, Potential Concerns; Financials-sector stocks
+    show the exclusion explanation instead; ETF/index pages have no strategy
+    sections.
+- Verified against SPEC §11 by hand: P/E 20 → 8.0 points, ROE 10% → 5.0,
+  revenue growth at −5% → 0, D/E 1.15 → 5.0, declining share count → 10 max.
+- D1/D2 verification results are preserved in git history; those suites are
+  subsets of the current suite.
 
 ## Known limitations
 
 - Demo data only (26 fictional instruments, fixed as-of date 2026-08-07).
-- No stock scoring or strategies (D3).
-- No filters beyond asset type, market, and search (D3/D4).
-- No sorting controls (D3/D4).
-- Page size is fixed at 25 in the UI; the URL does not carry pageSize or
-  sort state (no sort exists yet).
-- Watchlist stores display fallbacks only; the watchlist page does not fetch
-  live snapshots (deliberate D2 minimalism — detail links resolve live data).
+- Strategy toggle, filters, sort, and screened-page state are client-only —
+  not shareable via URL, reset on reload and tab switch.
+- Screener supports the D3 minimum filter set (six filters); sector,
+  market-cap-maximum, operating-margin, ROE, dividend-yield, and
+  data-completeness filters are not yet exposed.
+- No ETF filters or index sorting (D4).
+- Only one strategy; no user-editable weights or thresholds by design.
 - No live prices, portfolio tracking, or runtime AI integration.
 - Keyboard navigation and mobile layout smoke-tested via rendered HTML;
-  visual confirmation steps listed in the D2 report for the user to run.
+  visual confirmation steps listed in the D3 report for the user to run.
 
 ## Next proposed milestone
 
-D3 — Stock Screener and QARP Strategy
+D4 — ETF and Index Discovery
 
-D3 is proposed only. It is not authorized until the user explicitly approves it.
+D4 is proposed only. It is not authorized until the user explicitly approves it.

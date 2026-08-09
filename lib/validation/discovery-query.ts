@@ -21,6 +21,11 @@ export const discoveryQuerySchema = z.object({
     .optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  /** D4: return sorting, currently supported for indices only. */
+  sortField: z
+    .enum(["oneMonthReturn", "yearToDateReturn", "oneYearReturn"])
+    .optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional(),
 });
 
 export type DiscoveryQuery = z.infer<typeof discoveryQuerySchema>;
@@ -51,6 +56,8 @@ export function parseDiscoveryQuery(
     "query",
     "page",
     "pageSize",
+    "sortField",
+    "sortDirection",
   ] as const) {
     const value = searchParams.get(key);
     if (value !== null) {
@@ -69,6 +76,19 @@ export function parseDiscoveryQuery(
       ok: false,
       message: "One or more query parameters are invalid.",
       details,
+    };
+  }
+
+  // Sorting is index-only in D4: reject rather than silently ignore, so a
+  // client cannot believe an unsupported sort was applied (SPEC §13.2).
+  if (
+    result.data.sortField !== undefined &&
+    result.data.assetType !== "index"
+  ) {
+    return {
+      ok: false,
+      message: "Sorting is currently supported only for indices.",
+      details: { sortField: ["Unsupported for this asset type"] },
     };
   }
 

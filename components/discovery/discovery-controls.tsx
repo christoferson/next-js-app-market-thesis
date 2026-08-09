@@ -5,14 +5,27 @@ import { usePathname, useRouter } from "next/navigation";
 import type { AssetType, SupportedMarket } from "@/lib/domain";
 import { formatDate } from "@/lib/format";
 import {
+  changeAssetType,
   serializeDiscoveryUrlState,
   type DiscoveryUrlState,
 } from "@/lib/discovery/url-state";
+import type { EtfFilters } from "@/lib/screener/etf-filter";
 import { AssetTabs } from "./asset-tabs";
+import { EtfFilterPanel } from "./etf-filter-panel";
+import {
+  IndexSortControl,
+  type IndexSortSelection,
+} from "./index-sort-control";
 import { MarketSelector } from "./market-selector";
 import { Pagination } from "./pagination";
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** Distinct values in the ETF universe, derived server-side. */
+export interface EtfFacets {
+  categories: readonly string[];
+  exposureRegions: readonly string[];
+}
 
 export interface DiscoveryControlsProps {
   state: DiscoveryUrlState;
@@ -33,6 +46,40 @@ export interface DiscoveryControlsProps {
    * (D3 screener), so the URL-driven list count and pager are suppressed.
    */
   childOwnsResults?: boolean;
+  /**
+   * D4: select options for the ETF filter panel. Required for the panel to
+   * offer categories and regions; only supplied on the ETFs tab.
+   */
+  etfFacets?: EtfFacets;
+  /** D4: how many instruments the active refinements excluded, and why. */
+  summary?: {
+    filteredOutCount: number;
+    excludedForMissingDataCount: number;
+  };
+}
+
+/**
+ * Plain-language exclusion lines. Only non-zero counts are reported, so a
+ * user is never told that nothing was excluded.
+ */
+function exclusionLines(
+  summary: DiscoveryControlsProps["summary"]
+): readonly string[] {
+  if (summary === undefined) return [];
+  const lines: string[] = [];
+  if (summary.filteredOutCount > 0) {
+    lines.push(
+      `${summary.filteredOutCount} ${
+        summary.filteredOutCount === 1 ? "ETF" : "ETFs"
+      } did not match the filters.`
+    );
+  }
+  if (summary.excludedForMissingDataCount > 0) {
+    lines.push(
+      `${summary.excludedForMissingDataCount} excluded because required filter data was unavailable.`
+    );
+  }
+  return lines;
 }
 
 /**
@@ -46,6 +93,8 @@ export function DiscoveryControls({
   meta,
   children,
   childOwnsResults = false,
+  etfFacets,
+  summary,
 }: DiscoveryControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -74,8 +123,9 @@ export function DiscoveryControls({
 
   function handleAssetTypeChange(assetType: AssetType) {
     if (assetType === state.assetType) return;
-    // Market selection and search survive tab switches; pagination resets.
-    navigate({ ...state, assetType, page: 1 });
+    // Market and search survive tab switches; pagination resets and
+    // asset-incompatible filters/sort are dropped (SPEC §10.6).
+    navigate(changeAssetType(state, assetType));
   }
 
   function handleMarketChange(market: SupportedMarket | undefined) {
@@ -86,6 +136,16 @@ export function DiscoveryControls({
   function handlePageChange(page: number) {
     if (page === state.page || page < 1) return;
     navigate({ ...state, page });
+  }
+
+  // D4 refinements are asset-scoped: each handler is only reachable from the
+  // tab that owns it, and serialization drops params for the other tabs.
+  function handleEtfFiltersApply(etfFilters: EtfFilters) {
+    navigate({ ...state, etfFilters, page: 1 });
+  }
+
+  function handleIndexSortChange(indexSort: IndexSortSelection | null) {
+    navigate({ ...state, indexSort, page: 1 });
   }
 
   function handleSearchChange(text: string) {
@@ -113,6 +173,8 @@ export function DiscoveryControls({
     1,
     Math.ceil(pagination.total / Math.max(pagination.pageSize, 1))
   );
+
+  const lines = exclusionLines(summary);
 
   return (
     <section className="space-y-4">
@@ -154,6 +216,22 @@ export function DiscoveryControls({
         </div>
       </div>
 
+      {state.assetType === "etf" && etfFacets !== undefined ? (
+        <EtfFilterPanel
+          filters={state.etfFilters}
+          categories={etfFacets.categories}
+          exposureRegions={etfFacets.exposureRegions}
+          onApply={handleEtfFiltersApply}
+        />
+      ) : null}
+
+      {state.assetType === "index" ? (
+        <IndexSortControl
+          value={state.indexSort}
+          onChange={handleIndexSortChange}
+        />
+      ) : null}
+
       <div
         id="discovery-results"
         role="tabpanel"
@@ -169,6 +247,16 @@ export function DiscoveryControls({
         <div className={isPending ? "opacity-60 transition-opacity" : undefined}>
           {children}
         </div>
+
+        {!childOwnsResults && lines.length > 0 ? (
+          <ul className="space-y-1">
+            {lines.map((line) => (
+              <li key={line} className="text-xs text-stone-500">
+                {line}
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
         {!childOwnsResults && (pagination.total > 0 || pagination.page > 1) ? (
           <Pagination

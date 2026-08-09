@@ -2,18 +2,19 @@
 
 ## Current milestone
 
-D3 — Stock Screener and QARP Strategy
+D4 — ETF and Index Discovery
 
 ## Status
 
 Complete. All required checks pass. Awaiting user review and explicit
-authorization before D4.
+authorization before D5.
 
 ## Completed milestones
 
 - D1 — Foundation and Demo Discovery (2026-08-09)
 - D2 — Search, URL State, Detail Page, and Watchlist (2026-08-09)
 - D3 — Stock Screener and QARP Strategy (2026-08-09)
+- D4 — ETF and Index Discovery (2026-08-09)
 
 ## In progress
 
@@ -96,10 +97,47 @@ authorization before D4.
   list.
 - Screener UI wraps the existing DiscoveryControls (one `childOwnsResults`
   prop added) rather than duplicating tab/search/market controls.
+- D4: ETF filters and index sorting live in the URL (unlike D3's client-only
+  stock strategy state) because SPEC D4 requires URL state to drop
+  incompatible filters across tab changes. Params are asset-scoped: ETF
+  params parse/serialize only when asset=etf, index sort only when
+  asset=index; `changeAssetType` drops incompatible state while preserving
+  market and search.
+- Unknown (null) leveraged/inverse status fails an active exclusion filter —
+  "exclude leveraged" cannot be satisfied by "unknown", per missing-data
+  semantics.
+- `GET /api/discovery/instruments` accepts sortField/sortDirection for
+  indices only; a sort on another asset type is rejected with 400 rather
+  than silently ignored.
+- ETF filter facets (categories, exposure regions) are derived server-side
+  from the provider universe, not hardcoded in the UI.
+- Subagent review fix applied: a valueless numeric URL param (?maxExpense=)
+  is treated as not-set instead of an active zero-threshold filter
+  (Number("") is 0, which would have excluded every fund with a published
+  expense ratio).
 
 ## Verification
 
-D3, run on 2026-08-09 (Node 22.14.0, npm 11.11.0, Windows):
+D4, run on 2026-08-09 (Node 22.14.0, npm 11.11.0, Windows):
+
+- `npm run lint` — pass. `npm run typecheck` — pass. `npm run build` — pass.
+- `npm run test` — pass: 16 files, 594 tests, 0 failures (161 new D4 tests:
+  every ETF filter across pass/fail/missing/boundary, the
+  unknown-leverage-fails-exclusion invariant, index sorting with nulls last
+  in both directions, asset-scoped URL param scoping and round-trips,
+  changeAssetType behavior, index-only sort validation).
+- Runtime verification (production server): expense-ratio filter excludes the
+  missing-expense fund as "missing data" not "failed"; exclude-leveraged
+  removes TQ2X.DEMO; YTD sort orders indices correctly with the
+  missing-return index last; exposure-region "Japan" includes the US-listed
+  Japan-exposure ETF (listing ≠ exposure); tab switch drops ETF params from
+  the URL; sort param on a non-index tab is rejected by the API and ignored
+  by the page parser.
+- Detail pages verified: leverage factor shown only when known; missing
+  expense ratio shows — with its reason; index methodology, constituent
+  count, and non-tradable labeling present.
+
+D3 verification history:
 
 - `npm run lint` — pass (no warnings or errors).
 - `npm run typecheck` — pass (strict mode, zero errors).
@@ -130,19 +168,23 @@ D3, run on 2026-08-09 (Node 22.14.0, npm 11.11.0, Windows):
 ## Known limitations
 
 - Demo data only (26 fictional instruments, fixed as-of date 2026-08-07).
-- Strategy toggle, filters, sort, and screened-page state are client-only —
-  not shareable via URL, reset on reload and tab switch.
-- Screener supports the D3 minimum filter set (six filters); sector,
-  market-cap-maximum, operating-margin, ROE, dividend-yield, and
-  data-completeness filters are not yet exposed.
-- No ETF filters or index sorting (D4).
+- Stock strategy toggle/filters/sort remain client-only state (D3 decision);
+  ETF filters and index sorting are URL-backed. Unifying stock screener
+  state into the URL is candidate D6 polish work.
+- Screener supports the D3 minimum stock filter set (six filters).
 - Only one strategy; no user-editable weights or thresholds by design.
+- The refinement path loads the full matching universe (≤100 demo
+  instruments) before paginating — fine for demo; D5 must revisit for live
+  providers per SPEC §8.6/§22.
 - No live prices, portfolio tracking, or runtime AI integration.
 - Keyboard navigation and mobile layout smoke-tested via rendered HTML;
-  visual confirmation steps listed in the D3 report for the user to run.
+  visual confirmation steps listed in the D4 report for the user to run.
 
 ## Next proposed milestone
 
-D4 — ETF and Index Discovery
+D5 — Live Market-Data Provider
 
-D4 is proposed only. It is not authorized until the user explicitly approves it.
+D5 is proposed only. It is not authorized until the user explicitly approves
+it, and it begins with a provider-selection decision (SPEC §D5 checkpoint):
+one provider for both markets, US + Japan-specific providers, staying in
+demo mode, or evaluating named options first.

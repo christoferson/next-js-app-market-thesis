@@ -259,3 +259,142 @@ describe("parseDiscoveryQuery unknown parameters", () => {
     expect(result.query.assetType).toBe("etf");
   });
 });
+
+describe("parseDiscoveryQuery return sorting (indices only)", () => {
+  const sortFields = [
+    "oneMonthReturn",
+    "yearToDateReturn",
+    "oneYearReturn",
+  ] as const;
+
+  it("accepts a sort field and direction for indices", () => {
+    const result = parse(
+      "assetType=index&sortField=yearToDateReturn&sortDirection=desc"
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.sortField).toBe("yearToDateReturn");
+    expect(result.query.sortDirection).toBe("desc");
+  });
+
+  it.each(sortFields)("accepts sortField %s for indices", (sortField) => {
+    for (const sortDirection of ["asc", "desc"] as const) {
+      const result = parse(
+        `assetType=index&sortField=${sortField}&sortDirection=${sortDirection}`
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.query.sortField).toBe(sortField);
+      expect(result.query.sortDirection).toBe(sortDirection);
+    }
+  });
+
+  it("accepts a sort field without a direction, leaving the default to the service", () => {
+    const result = parse("assetType=index&sortField=oneYearReturn");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.sortField).toBe("oneYearReturn");
+    expect(result.query.sortDirection).toBeUndefined();
+  });
+
+  it("leaves both sort params undefined when neither is supplied", () => {
+    const result = parse("assetType=index");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.sortField).toBeUndefined();
+    expect(result.query.sortDirection).toBeUndefined();
+  });
+
+  it("rejects sorting for stocks", () => {
+    const result = parse("assetType=stock&sortField=oneYearReturn");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.details.sortField).toBeDefined();
+    expect(result.message).toBe("Sorting is currently supported only for indices.");
+  });
+
+  it("rejects sorting for ETFs", () => {
+    const result = parse(
+      "assetType=etf&sortField=oneYearReturn&sortDirection=desc"
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.details.sortField).toBeDefined();
+  });
+
+  it("rejects sorting when the asset type defaults to stock", () => {
+    const result = parse("sortField=yearToDateReturn&sortDirection=desc");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.details.sortField).toBeDefined();
+  });
+
+  it("does not silently ignore an unsupported sort", () => {
+    const result = parse("assetType=stock&sortField=oneYearReturn");
+
+    expect("query" in result).toBe(false);
+  });
+
+  it.each(["price", "marketCap", "peRatio", "level", "oneyearreturn"])(
+    "rejects an unsupported sortField %s",
+    (sortField) => {
+      const result = parse(`assetType=index&sortField=${sortField}`);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.details.sortField).toBeDefined();
+    }
+  );
+
+  it("rejects an unsupported sort direction", () => {
+    const result = parse(
+      "assetType=index&sortField=oneYearReturn&sortDirection=ascending"
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.details.sortDirection).toBeDefined();
+  });
+
+  it("accepts a sort direction with no sort field", () => {
+    const result = parse("assetType=index&sortDirection=asc");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query.sortField).toBeUndefined();
+    expect(result.query.sortDirection).toBe("asc");
+  });
+
+  it("reports the schema failure before the asset-type restriction", () => {
+    const result = parse("assetType=stock&sortField=price");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe("One or more query parameters are invalid.");
+  });
+
+  it("carries sorting alongside the other index params", () => {
+    const result = parse(
+      "assetType=index&market=JP&page=2&pageSize=10" +
+        "&sortField=oneMonthReturn&sortDirection=asc"
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.query).toEqual({
+      assetType: "index",
+      market: "JP",
+      page: 2,
+      pageSize: 10,
+      sortField: "oneMonthReturn",
+      sortDirection: "asc",
+    });
+  });
+});

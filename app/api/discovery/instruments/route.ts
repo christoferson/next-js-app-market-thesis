@@ -21,7 +21,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const { result, meta } = await listDiscoveryInstruments(parsed.query);
+    const { query } = parsed;
+    const { result, summary, meta } = await listDiscoveryInstruments(query, {
+      indexSort:
+        query.sortField !== undefined
+          ? {
+              field: query.sortField,
+              direction: query.sortDirection ?? "desc",
+            }
+          : null,
+    });
 
     return NextResponse.json({
       data: result.items,
@@ -31,6 +40,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         total: result.total,
         hasNextPage: result.hasNextPage,
       },
+      summary,
       meta,
     });
   } catch (error) {

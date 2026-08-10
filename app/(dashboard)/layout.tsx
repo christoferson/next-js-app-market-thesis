@@ -4,6 +4,7 @@ import { NavLinks, type NavLink } from "@/components/nav-links";
 
 const NAV_LINKS: readonly NavLink[] = [
   { href: "/discover", label: "Discover" },
+  { href: "/research", label: "Research" },
   { href: "/watchlist", label: "Watchlist" },
   { href: "/about", label: "About" },
 ];

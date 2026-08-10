@@ -2,15 +2,15 @@
 
 ## Current milestone
 
-Discovery release complete (D1–D6, demo release).
+Phase R, milestone R1 — US filing timeline and deterministic change
+detection (SEC EDGAR).
 
 ## Status
 
-**Discovery is complete as a demo release** (D1, D2, D3, D4, D6 implemented;
-D5 resolved as "stay in demo mode" by explicit user decision — see the D5
-provider decision below; SPEC §26 demo-release definition approved by the
-user on 2026-08-09 when authorizing D6). All required checks pass, including
-the end-to-end smoke suite. The next phase (Research) is proposed only.
+R1 complete; all required checks pass. Discovery remains complete as a demo
+release (see below). R2 (Claude-powered narrative comparison) and R3 (Japan
+via EDINET) are proposed only and each requires explicit approval (R2:
+Anthropic SDK + runtime costs; R3: database + EDINET API key).
 
 ## Completed milestones
 
@@ -21,6 +21,7 @@ the end-to-end smoke suite. The next phase (Research) is proposed only.
 - D5 — resolved as demo mode + provider evaluation (2026-08-09; no live
   provider selected or implemented, per user decision)
 - D6 — Discovery Quality and Release Polish (2026-08-09, demo release)
+- R1 — US filing timeline + deterministic change detection (2026-08-10)
 
 ## In progress
 
@@ -123,6 +124,54 @@ the end-to-end smoke suite. The next phase (Research) is proposed only.
   expense ratio).
 
 ## Verification
+
+R1, run on 2026-08-10 (Node 22.14.0, npm 11.11.0, Windows):
+
+- `npm run lint` — pass. `npm run typecheck` — pass. `npm run build` — pass
+  (`/research` static, `/research/[companyId]` force-dynamic — EDGAR is
+  never called at build time).
+- `npm run test` — pass: 21 files, 677 unit tests (74 new R1 tests over a
+  sanitized companyfacts fixture: fy/fp duplicate-fact dedupe, 10-K/A
+  restatement precedence, concept drift tag fallback, 10-Q/Q4 exclusion
+  from annual series, instant vs duration, missing concepts as null,
+  zero-prior-base relative change, schema validation).
+- `npm run test:e2e` — pass: 55 passed, 7 intentionally skipped.
+- Live verification against real EDGAR data (opt-in, not in default tests;
+  `scripts/verify-edgar.mjs`): Apple submissions + companyfacts fetch,
+  annual revenue dedupe (raw facts → unique periods), restatement handling.
+  The research pages rendered real cited data for AAPL/KO/PG/DIS/INTC/MSFT,
+  including non-calendar fiscal years; the EDGAR-failure branch renders a
+  readable inline error, verified with a shimmed 503.
+
+## R1 decisions
+
+- Research shows REAL companies' actual SEC filings, cited to source
+  documents — distinct from Discovery's fictional demo market data; the UI
+  labels the difference prominently. SPEC §9.1's fictional-identity rule
+  governs fabricated values, not quoted public filings.
+- Curated 10-company starter universe (user decision 2026-08-10); free-text
+  CIK lookup deferred.
+- EDGAR access: keyless with a declared User-Agent (`EDGAR_USER_AGENT` env
+  var, non-secret), serialized requests with 150ms spacing (far below the
+  documented 10 req/s), 15-minute in-memory TTL cache, 15s timeouts,
+  runtime Zod validation of all responses.
+- XBRL fact selection: facts are grouped by their own (start, end) period —
+  never by EDGAR's `fy`/`fp`, which describe the filing — and deduped
+  keeping the latest `filed`, so amendments and later comparatives restate
+  earlier values. Revenue uses an ordered tag-fallback list (ASC 606 tag
+  first) with the winning tag recorded as provenance.
+- Change semantics: relative change is null when the prior base is zero;
+  missing concepts render as lines with "not reported", never omitted or
+  zeroed. Neutral language throughout ("changed", never "improved").
+- No LLM, no database in R1 (per approved plan); the Anthropic SDK and
+  persistence remain gated on R2/R3 approval.
+
+## Discovery status
+
+**Discovery is complete as a demo release** (D1, D2, D3, D4, D6 implemented;
+D5 resolved as "stay in demo mode" by explicit user decision — see the D5
+provider decision below; SPEC §26 demo-release definition approved by the
+user on 2026-08-09 when authorizing D6).
 
 D6 (final Discovery verification), run on 2026-08-09 (Node 22.14.0,
 npm 11.11.0, Windows):
@@ -240,11 +289,12 @@ Key evaluation findings recorded for future D5 work:
 
 ## Next proposed milestone
 
-Phase R — Research and "What Changed?" (SPEC §25): filing ingestion,
-period comparison, evidence-grounded research summaries, and the first
-runtime Claude integration. Alternatively, live-provider D5 work can be
-resumed at any time by selecting a provider (evaluation notes are ready
-under `docs/references/`).
+R2 — Claude-powered "What Changed?" narrative comparison (US): extract risk
+factors and MD&A from consecutive 10-Ks, deterministic pre-processing,
+Claude comparison with citations, REPORTED FACT / MANAGEMENT CLAIM / AI
+INTERPRETATION labeling per SPEC §24.3. Requires explicit approval because
+it introduces the Anthropic SDK and runtime API costs (an Anthropic API key
+in `.env.local` and a model/cost budget decision).
 
-The Research phase is proposed only. It is not authorized until the user
-explicitly approves it.
+R2 is proposed only. R3 (Japan via EDINET, requires a database) and live-
+provider D5 remain available alternatives. See `docs/phase-r-plan.md`.

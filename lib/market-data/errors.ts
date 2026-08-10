@@ -2,6 +2,8 @@ export type MarketDataErrorCode =
   | "INVALID_REQUEST"
   | "NOT_FOUND"
   | "PROVIDER_NOT_CONFIGURED"
+  | "PROVIDER_UNAVAILABLE"
+  | "PROVIDER_INVALID_RESPONSE"
   | "INTERNAL_ERROR";
 
 export class MarketDataError extends Error {

@@ -11,6 +11,10 @@ import {
   MISSING_DISPLAY,
 } from "@/lib/format";
 import { MarketDataError } from "@/lib/market-data/errors";
+import { WhatChangedSection as NarrativeComparisonSection } from "@/components/research/what-changed-section";
+// Server-only gate. The client component never imports the analysis config, so
+// whether AI is enabled is decided here and reflected in what gets rendered.
+import { isAnalysisEnabled } from "@/lib/research/analysis/get-client";
 import type { FinancialLineChange } from "@/lib/research/changes";
 import type { SelectedFact } from "@/lib/research/edgar/facts";
 import {
@@ -334,6 +338,21 @@ function WhatChangedSection({ research }: { research: CompanyResearch }) {
   );
 }
 
+/**
+ * When runtime AI is switched off for a deployment, the section is replaced by
+ * a plain statement rather than a button that cannot work.
+ */
+function NarrativeComparisonDisabled() {
+  return (
+    <section className={SECTION_CLASS}>
+      <h2 className={SECTION_HEADING_CLASS}>What Changed — Risk Factors</h2>
+      <p className="text-sm text-stone-600">
+        AI narrative comparison is disabled in this deployment.
+      </p>
+    </section>
+  );
+}
+
 /* -------------------------------------------------------- filing timeline */
 
 function FilingRow({
@@ -549,7 +568,13 @@ export default async function CompanyResearchPage({
     <div className="space-y-6">
       <BackLink />
       <ResearchHeader research={research} />
+      {/* Deterministic figures first; the AI narrative comparison follows. */}
       <WhatChangedSection research={research} />
+      {isAnalysisEnabled() ? (
+        <NarrativeComparisonSection companyId={companyId} />
+      ) : (
+        <NarrativeComparisonDisabled />
+      )}
       <FilingTimelineSection research={research} />
     </div>
   );

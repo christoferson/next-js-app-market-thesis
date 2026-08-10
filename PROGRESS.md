@@ -2,15 +2,15 @@
 
 ## Current milestone
 
-Phase R, milestone R1 — US filing timeline and deterministic change
-detection (SEC EDGAR).
+Phase R, milestone R2 — Claude-powered "What Changed?" narrative comparison
+(US, via AWS Bedrock).
 
 ## Status
 
-R1 complete; all required checks pass. Discovery remains complete as a demo
-release (see below). R2 (Claude-powered narrative comparison) and R3 (Japan
-via EDINET) are proposed only and each requires explicit approval (R2:
-Anthropic SDK + runtime costs; R3: database + EDINET API key).
+R2 complete; all required checks pass and the pipeline was verified end to
+end against real filings with a live Bedrock call. Discovery remains
+complete as a demo release (see below). R3 (Japan via EDINET; requires a
+database) is proposed only.
 
 ## Completed milestones
 
@@ -22,6 +22,7 @@ Anthropic SDK + runtime costs; R3: database + EDINET API key).
   provider selected or implemented, per user decision)
 - D6 — Discovery Quality and Release Polish (2026-08-09, demo release)
 - R1 — US filing timeline + deterministic change detection (2026-08-10)
+- R2 — AI narrative comparison of 10-K risk factors via Bedrock (2026-08-10)
 
 ## In progress
 
@@ -123,9 +124,61 @@ Anthropic SDK + runtime costs; R3: database + EDINET API key).
   (Number("") is 0, which would have excluded every fund with a published
   expense ratio).
 
+## R2 decisions
+
+- Runtime AI transport is AWS Bedrock (user decision 2026-08-10), accessed
+  through the `AnthropicBedrockMantle` client with the standard AWS
+  credential chain (AWS_PROFILE locally; ECS task role later). No API keys
+  in app config.
+- A provider-agnostic facade (`lib/research/analysis/types.ts` +
+  `get-client.ts`) isolates the transport: `RESEARCH_ANALYSIS_PROVIDER`
+  selects the implementation ("bedrock" default, "off" disables); swapping
+  to the first-party Anthropic API later is one new factory branch.
+- Default model `anthropic.claude-sonnet-5` (override:
+  `RESEARCH_ANALYSIS_MODEL_ID`); adaptive thinking; structured output via a
+  forced tool call validated by Zod. Bedrock rejects `strict: true` on
+  tools (verified live) — forced tool_choice + server-side Zod validation
+  provides the schema guarantee instead.
+- Every analysis carries provenance: model ID, prompt version
+  (`narrative-comparison-v2` — versioned; any prompt/schema change requires
+  a bump enforced by a pinning test), generation time, token counts.
+- Findings are classified REPORTED FACT / MANAGEMENT CLAIM /
+  AI INTERPRETATION per SPEC §24.3, with verbatim evidence quotes and links
+  to both source filings.
+- Comparisons are ON-DEMAND (button), never on page load — each is a paid
+  Bedrock call (~43K input tokens for a large 10-K pair). Successful results
+  are cached in-memory per company.
+- Length-vs-structure validation split: structural problems (wrong enums,
+  missing fields) reject the response; over-long strings and extra findings
+  are clipped after validation — a valid-but-verbose response is a paid
+  call and is not discarded.
+- Section extraction is deterministic and heuristic (10-K HTML → text →
+  Item 1A slice, TOC-vs-body disambiguated by last heading match). When a
+  section cannot be located the UI says so — it never approximates. Two
+  real-world fixes verified against live filings: inline tags (span/font)
+  strip to nothing because filings split words across spans ("RIS|K
+  FACTORS"), and single-quote entities decode to apostrophes (both found by
+  live testing / subagent review).
+- Live end-to-end verification (MSFT FY2025→FY2026 10-Ks): 15 findings
+  (3 REPORTED FACT, 5 MANAGEMENT CLAIM, 7 AI INTERPRETATION), all with
+  evidence quotes, correct period labels, neutral language.
+
 ## Verification
 
-R1, run on 2026-08-10 (Node 22.14.0, npm 11.11.0, Windows):
+R2, run on 2026-08-10 (Node 22.14.0, npm 11.11.0, Windows):
+
+- `npm run lint` — pass. `npm run typecheck` — pass. `npm run build` — pass.
+- `npm run test` — pass: 24 files, 749 unit tests (72 new R2 tests:
+  HTML-to-text conversion, section extraction incl. TOC-vs-body and
+  boundary cases, prompt determinism and clipping, schema validation and
+  wire-schema/Zod cross-checks, error types).
+- `npx playwright test --project=chromium` — 25 passed (no regressions).
+- Live verification (opt-in, real requests): `scripts/verify-bedrock.mjs`
+  (structured output round-trip), `scripts/debug-sections.mjs` (extraction
+  regexes against MSFT/AAPL/PG 10-Ks), and one full end-to-end comparison
+  through the API route (result above).
+
+R1 verification history:
 
 - `npm run lint` — pass. `npm run typecheck` — pass. `npm run build` — pass
   (`/research` static, `/research/[companyId]` force-dynamic — EDGAR is
@@ -289,12 +342,12 @@ Key evaluation findings recorded for future D5 work:
 
 ## Next proposed milestone
 
-R2 — Claude-powered "What Changed?" narrative comparison (US): extract risk
-factors and MD&A from consecutive 10-Ks, deterministic pre-processing,
-Claude comparison with citations, REPORTED FACT / MANAGEMENT CLAIM / AI
-INTERPRETATION labeling per SPEC §24.3. Requires explicit approval because
-it introduces the Anthropic SDK and runtime API costs (an Anthropic API key
-in `.env.local` and a model/cost budget decision).
+R3 — Japan via EDINET: date-axis filing ingestion (requires a database —
+SQLite/Postgres decision at kickoff), 有価証券報告書/半期報告書 timelines,
+tagged text-block extraction, cross-lingual comparison. Requires the user's
+free EDINET API key and explicit approval for the persistence layer.
+Alternatives: extend R2 to MD&A sections or more companies; resume
+live-provider D5. See `docs/phase-r-plan.md`.
 
-R2 is proposed only. R3 (Japan via EDINET, requires a database) and live-
-provider D5 remain available alternatives. See `docs/phase-r-plan.md`.
+R3 is proposed only. It is not authorized until the user explicitly
+approves it.

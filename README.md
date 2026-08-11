@@ -82,6 +82,29 @@ npm run build      # production build
 End-to-end tests run in demo mode and require no API keys or network access
 beyond localhost. First run: `npx playwright install chromium`.
 
+## Research (Phase R)
+
+The Research section shows REAL filings (unlike Discover's fictional demo
+market data): US companies via SEC EDGAR (keyless; set `EDGAR_USER_AGENT`)
+and Japanese companies via EDINET (requires the free `EDINET_API_KEY`).
+
+Japanese filings must be ingested into the local store first (EDINET's API
+is date-indexed only):
+
+```bash
+# one-time ingest of filing windows (annual reports land Jun/Nov):
+npm run sync:edinet -- 2024-06-15 2024-07-05
+npm run sync:edinet -- 2025-06-15 2025-07-05
+npm run sync:edinet -- 2024-11-20 2024-11-30
+npm run sync:edinet -- 2025-11-20 2025-11-30
+# later: npm run sync:edinet -- --resume 2026-08-31
+```
+
+The store is a single gitignored SQLite file (`data/edinet/filings.sqlite`).
+The AI "What Changed" comparison uses AWS Bedrock via your AWS credential
+chain (`AWS_PROFILE`); each comparison is an on-demand button press and is
+cached server-side. Set `RESEARCH_ANALYSIS_PROVIDER=off` to disable AI.
+
 ## API
 
 `GET /api/discovery/instruments`

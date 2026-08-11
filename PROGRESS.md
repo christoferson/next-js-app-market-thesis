@@ -2,15 +2,14 @@
 
 ## Current milestone
 
-Phase R, milestone R2 — Claude-powered "What Changed?" narrative comparison
-(US, via AWS Bedrock).
+Phase R, milestone R3 — Japanese filings via EDINET (local SQLite store,
+cross-lingual comparison).
 
 ## Status
 
-R2 complete; all required checks pass and the pipeline was verified end to
-end against real filings with a live Bedrock call. Discovery remains
-complete as a demo release (see below). R3 (Japan via EDINET; requires a
-database) is proposed only.
+R3 complete; all required checks pass and the cross-lingual pipeline was
+verified end to end with a live Bedrock call over real EDINET filings.
+Discovery remains complete as a demo release (see below).
 
 ## Completed milestones
 
@@ -23,6 +22,7 @@ database) is proposed only.
 - D6 — Discovery Quality and Release Polish (2026-08-09, demo release)
 - R1 — US filing timeline + deterministic change detection (2026-08-10)
 - R2 — AI narrative comparison of 10-K risk factors via Bedrock (2026-08-10)
+- R3 — Japanese filings via EDINET + cross-lingual comparison (2026-08-10)
 
 ## In progress
 
@@ -123,6 +123,60 @@ database) is proposed only.
   is treated as not-set instead of an active zero-threshold filter
   (Number("") is 0, which would have excluded every fund with a published
   expense ratio).
+
+## R3 decisions
+
+- Storage: SQLite via better-sqlite3, one gitignored file
+  (`data/edinet/filings.sqlite`), WAL mode. Chosen over a
+  file-download/pandas approach: pandas would add a Python runtime to a
+  TypeScript app, and SQLite already is a single local file — with indexes
+  and SQL (user approved 2026-08-10).
+- EDINET is date-indexed only, so filings are ingested by a resumable sync
+  script (`npm run sync:edinet -- <from> <to>` / `--resume`) that walks
+  calendar dates, keeps annual (120) and semiannual (160) reports for a
+  curated 6-company Japanese universe (Toyota, Sony, Keyence, Nintendo,
+  Fast Retailing, Shin-Etsu), downloads XBRL archives, and extracts risk
+  text at ingest time — page loads never re-download or re-parse.
+- EDINET quirks handled per the evaluation notes: the API key rides in the
+  query string (all URLs redacted before logging — unit-tested), errors
+  arrive as HTTP 200 JSON (status checked in-body; 210 "no data" treated as
+  success), document fetches validated by Content-Type, unpublished rate
+  limit → conservative ~1.4 req/s throttle.
+- Risk-section extraction targets the inline-XBRL element
+  `jpcrp_cor:BusinessRisksTextBlock` with a depth-counting parser (the
+  ix:nonNumeric wrapper nests; discovered live — the naive regex from the
+  first draft failed on all five real filings and was rewritten against
+  Nintendo's FY2025 report). Extracted Japanese text is clean prose
+  (verified: no tag litter, headings and paragraph breaks preserved).
+- Cross-lingual comparison reuses the R2 analysis facade unchanged:
+  Japanese source text in, English findings out, with a prominent
+  translation-assisted note (CROSS_LINGUAL_NOTE) and links to the original
+  EDINET documents. Verified live (Nintendo FY2024→FY2025): 4 findings
+  (2 REPORTED FACT, 1 MANAGEMENT CLAIM, 1 AI INTERPRETATION), correctly
+  identifying the section as substantially unchanged, with verbatim
+  Japanese evidence quotes; ~9K input / 1.1K output tokens.
+- PDL 1.0 attribution (出典：EDINET閲覧（提出）サイト、PDL1.0) renders on
+  every Japanese research page, satisfying EDINET's reuse license.
+- The R2 What Changed client component was generalized (endpoint/label
+  props with US defaults) rather than duplicated; US behavior unchanged.
+- Semiannual reports are ingested and listed but comparison is
+  annual-vs-annual in R3 (Japan abolished quarterly reports; semiannual
+  narrative comparison is future work).
+
+## R3 verification
+
+Run on 2026-08-10 (Node 22.14.0, Windows):
+
+- `npm run lint` / `npm run typecheck` / `npm run build` — pass.
+- `npm run test` — pass: 28 files, 823 unit tests (74 new R3 tests: URL
+  redaction, EDINET schemas, SQLite store round-trips/upsert/cursor with
+  temp databases, inline-XBRL depth parsing incl. nesting and self-closing
+  tags, ZIP extraction with Japanese text, universe integrity).
+- `npx playwright test --project=chromium` — 25 passed (no regressions).
+- Live: synced 12 real filings across three date windows (~53 EDINET
+  requests); extracted risk text for all six companies both years
+  (1.9K–22K chars each); one live cross-lingual Bedrock comparison
+  (result above).
 
 ## R2 decisions
 
@@ -342,12 +396,15 @@ Key evaluation findings recorded for future D5 work:
 
 ## Next proposed milestone
 
-R3 — Japan via EDINET: date-axis filing ingestion (requires a database —
-SQLite/Postgres decision at kickoff), 有価証券報告書/半期報告書 timelines,
-tagged text-block extraction, cross-lingual comparison. Requires the user's
-free EDINET API key and explicit approval for the persistence layer.
-Alternatives: extend R2 to MD&A sections or more companies; resume
-live-provider D5. See `docs/phase-r-plan.md`.
+Phase R is functionally complete (R1–R3). Candidate next steps, each
+requiring explicit approval:
 
-R3 is proposed only. It is not authorized until the user explicitly
-approves it.
+- R4 (polish): widen the research universes, add MD&A/semiannual
+  comparisons, free-text company lookup, e2e coverage for research pages,
+  scheduled EDINET sync.
+- Phase T — Investment Thesis Journal (SPEC §25): user-written theses with
+  measurable claims; first persistent user data.
+- D5 live market data: select a provider (evaluations ready under
+  docs/references/).
+
+None is authorized until the user explicitly approves one.

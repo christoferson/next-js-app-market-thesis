@@ -11,34 +11,46 @@ import type {
 } from "@/lib/research/analysis/types";
 
 /**
- * R2 "What Changed — Risk Factors": the AI-assisted narrative comparison.
+ * "What Changed" narrative comparison: the AI-assisted section shared by the
+ * US (SEC EDGAR, R2) and Japanese (EDINET, R3) research pages.
  *
  * The comparison is a real model invocation with a real cost, so it never runs
  * on page load — the user asks for it explicitly, and the browser then calls
  * the server route that owns the analysis. Nothing here knows about Bedrock,
  * AWS, or prompts; it renders whatever the server reports, including the
  * classification of every statement (SPEC §24.3).
+ *
+ * The two markets differ only in wording, endpoint, and the shape of a filing
+ * reference. Those are props and a tolerant reader rather than a second copy
+ * of this component, so a change to the analysis UI cannot drift between
+ * markets. Every prop defaults to the US behaviour.
  */
 
 /* ---------------------------------------------------------- API envelope */
 
 /**
  * The route's payload shape. Declared locally rather than imported: the
- * comparison service is server-only, and an HTTP response is an external
+ * comparison services are server-only, and an HTTP response is an external
  * boundary for the browser too — it is validated below, not trusted.
+ *
+ * A filing reference is identified differently per market (EDGAR accession
+ * number and document URL; EDINET document ID and viewer URL), so each is
+ * read into one display-ready shape instead of being handled downstream.
  */
-interface FilingRefPayload {
-  filingDate: string;
-  reportDate: string | null;
-  documentUrl: string;
-  accessionNumber: string;
+interface NormalizedFilingRef {
+  /** Absolute URL of the original document on the regulator's site. */
+  url: string;
+  /** Human period description, e.g. "year ended Mar 31, 2025". */
+  periodLabel: string;
 }
 
 interface ComparisonPayload {
   comparison: NarrativeComparison;
   sectionTitle: string;
-  current: FilingRefPayload;
-  prior: FilingRefPayload;
+  /** Present for cross-lingual comparisons (Japanese source, English output). */
+  crossLingualNote: string | null;
+  current: NormalizedFilingRef;
+  prior: NormalizedFilingRef;
 }
 
 interface UnavailablePayload {
@@ -54,14 +66,38 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function isFilingRef(value: unknown): value is FilingRefPayload {
+function asOptionalDate(value: unknown): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+/**
+ * Reads either market's filing reference. EDGAR reports `documentUrl` with a
+ * `filingDate`/`reportDate` pair; EDINET reports `viewerUrl` with a
+ * `submitDate`/`periodEnd` pair. Anything else is rejected rather than
+ * rendered as a link to nowhere.
+ */
+function readFilingRef(value: unknown): NormalizedFilingRef | null {
   const candidate = asRecord(value);
-  return (
-    candidate !== null &&
-    typeof candidate.filingDate === "string" &&
-    typeof candidate.documentUrl === "string" &&
-    typeof candidate.accessionNumber === "string"
-  );
+  if (candidate === null) return null;
+
+  const url =
+    typeof candidate.documentUrl === "string"
+      ? candidate.documentUrl
+      : typeof candidate.viewerUrl === "string"
+        ? candidate.viewerUrl
+        : null;
+  if (url === null) return null;
+
+  const period =
+    asOptionalDate(candidate.reportDate) ?? asOptionalDate(candidate.periodEnd);
+  if (period !== null) {
+    return { url, periodLabel: `year ended ${formatDate(period)}` };
+  }
+
+  const filed =
+    asOptionalDate(candidate.filingDate) ?? asOptionalDate(candidate.submitDate);
+  if (filed === null) return null;
+  return { url, periodLabel: `filed ${formatDate(filed)}` };
 }
 
 const CLASSIFICATIONS: readonly FindingClassification[] = [
@@ -108,17 +144,22 @@ function readOutcome(value: unknown): OutcomePayload | null {
       : null;
   }
 
+  const current = readFilingRef(data.current);
+  const prior = readFilingRef(data.prior);
+
   if (
     isComparison(data.comparison) &&
     typeof data.sectionTitle === "string" &&
-    isFilingRef(data.current) &&
-    isFilingRef(data.prior)
+    current !== null &&
+    prior !== null
   ) {
     return {
       comparison: data.comparison,
       sectionTitle: data.sectionTitle,
-      current: data.current,
-      prior: data.prior,
+      crossLingualNote:
+        typeof data.crossLingualNote === "string" ? data.crossLingualNote : null,
+      current,
+      prior,
     };
   }
 
@@ -167,13 +208,6 @@ const CHANGE_TYPE_LABEL: Record<ChangeType, string> = {
   modified: "Modified",
 };
 
-/** The filing's own period, preferring the reported period over the filing date. */
-function periodLabel(ref: FilingRefPayload): string {
-  return ref.reportDate === null || ref.reportDate === ""
-    ? `filed ${formatDate(ref.filingDate)}`
-    : `year ended ${formatDate(ref.reportDate)}`;
-}
-
 /* ----------------------------------------------------------------- styles */
 
 const SECTION_CLASS = "space-y-3 rounded-md border border-stone-200 bg-white p-5";
@@ -187,13 +221,22 @@ const SECONDARY_BUTTON_CLASS =
 const EXTERNAL_LINK_CLASS =
   "rounded-sm text-stone-700 underline decoration-stone-400 underline-offset-2 transition-colors motion-reduce:transition-none hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 
-const EXPLANATION =
+const DEFAULT_HEADING = "What Changed — Risk Factors";
+
+const DEFAULT_BUTTON_LABEL = "Compare latest risk factors";
+
+const DEFAULT_EXPLANATION =
   "AI-assisted comparison of the risk-factor sections in the two most recent " +
   "annual reports. Deterministic financial figures are in the table above; " +
   "this analyzes narrative text.";
 
-const COST_NOTE =
+const DEFAULT_COST_NOTE =
   "Uses an AI model via AWS Bedrock. Takes up to a minute.";
+
+const DEFAULT_LOADING_NOTE = "Comparing filings — this can take a minute…";
+
+/** Suffix on a filing link, naming the site the link actually opens. */
+const DEFAULT_SOURCE_LABEL = "sec.gov";
 
 const DISCLAIMER =
   "AI-generated comparison. Classifications distinguish reported facts, " +
@@ -261,40 +304,62 @@ function FindingItem({ finding }: { finding: ComparisonFinding }) {
 function FilingReferences({
   current,
   prior,
+  sourceLabel,
 }: {
-  current: FilingRefPayload;
-  prior: FilingRefPayload;
+  current: NormalizedFilingRef;
+  prior: NormalizedFilingRef;
+  sourceLabel: string;
 }) {
   return (
     <p className="text-xs leading-relaxed text-stone-600">
       {"Comparing "}
       <a
-        href={prior.documentUrl}
+        href={prior.url}
         target="_blank"
         rel="noopener noreferrer"
         className={EXTERNAL_LINK_CLASS}
       >
-        {`${periodLabel(prior)} (sec.gov)`}
+        {`${prior.periodLabel} (${sourceLabel})`}
       </a>
       {" → "}
       <a
-        href={current.documentUrl}
+        href={current.url}
         target="_blank"
         rel="noopener noreferrer"
         className={EXTERNAL_LINK_CLASS}
       >
-        {`${periodLabel(current)} (sec.gov)`}
+        {`${current.periodLabel} (${sourceLabel})`}
       </a>
     </p>
   );
 }
 
-function ComparisonResult({ outcome }: { outcome: ComparisonPayload }) {
+function ComparisonResult({
+  outcome,
+  sourceLabel,
+}: {
+  outcome: ComparisonPayload;
+  sourceLabel: string;
+}) {
   const { comparison } = outcome;
 
   return (
     <div className="space-y-4">
-      <FilingReferences current={outcome.current} prior={outcome.prior} />
+      <FilingReferences
+        current={outcome.current}
+        prior={outcome.prior}
+        sourceLabel={sourceLabel}
+      />
+
+      {/*
+        The cross-lingual caveat comes from the server with the analysis, so it
+        appears above the findings it applies to and only when it applies.
+      */}
+      {outcome.crossLingualNote === null ? null : (
+        <p className="text-xs leading-relaxed text-stone-700">
+          {outcome.crossLingualNote}
+        </p>
+      )}
 
       <div className="space-y-2">
         <span className={`${BADGE_BASE_CLASS} ${CLASSIFICATION_BORDER.AI_INTERPRETATION}`}>
@@ -344,7 +409,34 @@ type RequestState =
   | { status: "error"; failure: RouteFailure }
   | { status: "ok"; outcome: OutcomePayload };
 
-export function WhatChangedSection({ companyId }: { companyId: string }) {
+export interface WhatChangedSectionProps {
+  companyId: string;
+  /**
+   * Route that owns the comparison, as a template containing `{companyId}`.
+   * Defaults to the US route; the JP page passes the EDINET route.
+   */
+  endpointTemplate?: string;
+  heading?: string;
+  explanation?: string;
+  buttonLabel?: string;
+  costNote?: string;
+  loadingNote?: string;
+  sourceLabel?: string;
+  /** Optional market-specific note shown before the comparison is requested. */
+  extraNote?: string;
+}
+
+export function WhatChangedSection({
+  companyId,
+  endpointTemplate = "/api/research/{companyId}/what-changed",
+  heading = DEFAULT_HEADING,
+  explanation = DEFAULT_EXPLANATION,
+  buttonLabel = DEFAULT_BUTTON_LABEL,
+  costNote = DEFAULT_COST_NOTE,
+  loadingNote = DEFAULT_LOADING_NOTE,
+  sourceLabel = DEFAULT_SOURCE_LABEL,
+  extraNote,
+}: WhatChangedSectionProps) {
   const [state, setState] = useState<RequestState>({ status: "idle" });
 
   async function requestComparison(): Promise<void> {
@@ -352,7 +444,10 @@ export function WhatChangedSection({ companyId }: { companyId: string }) {
 
     try {
       const response = await fetch(
-        `/api/research/${encodeURIComponent(companyId)}/what-changed`,
+        endpointTemplate.replace(
+          "{companyId}",
+          encodeURIComponent(companyId)
+        ),
         { headers: { Accept: "application/json" } }
       );
       // A non-JSON body (proxy error page, truncated response) must not throw.
@@ -411,8 +506,11 @@ export function WhatChangedSection({ companyId }: { companyId: string }) {
 
   return (
     <section className={SECTION_CLASS}>
-      <h2 className={SECTION_HEADING_CLASS}>What Changed — Risk Factors</h2>
-      <p className="text-sm leading-relaxed text-stone-600">{EXPLANATION}</p>
+      <h2 className={SECTION_HEADING_CLASS}>{heading}</h2>
+      <p className="text-sm leading-relaxed text-stone-600">{explanation}</p>
+      {extraNote === undefined ? null : (
+        <p className="text-sm leading-relaxed text-stone-600">{extraNote}</p>
+      )}
 
       {state.status === "idle" ? (
         <div className="space-y-2">
@@ -421,19 +519,19 @@ export function WhatChangedSection({ companyId }: { companyId: string }) {
             onClick={() => void requestComparison()}
             className={PRIMARY_BUTTON_CLASS}
           >
-            Compare latest risk factors
+            {buttonLabel}
           </button>
-          <p className="text-xs text-stone-600">{COST_NOTE}</p>
+          <p className="text-xs text-stone-600">{costNote}</p>
         </div>
       ) : null}
 
       {state.status === "loading" ? (
         <div className="space-y-2">
           <button type="button" disabled className={PRIMARY_BUTTON_CLASS}>
-            Compare latest risk factors
+            {buttonLabel}
           </button>
           <p role="status" className="text-sm text-stone-700">
-            Comparing filings — this can take a minute…
+            {loadingNote}
           </p>
         </div>
       ) : null}
@@ -461,7 +559,10 @@ export function WhatChangedSection({ companyId }: { companyId: string }) {
             {state.outcome.reason}
           </p>
         ) : (
-          <ComparisonResult outcome={state.outcome} />
+          <ComparisonResult
+            outcome={state.outcome}
+            sourceLabel={sourceLabel}
+          />
         )
       ) : null}
     </section>

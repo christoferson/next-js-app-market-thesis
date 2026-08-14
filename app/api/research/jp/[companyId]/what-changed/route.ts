@@ -48,13 +48,16 @@ function errorResponse(
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ companyId: string }> }
 ): Promise<NextResponse> {
   const { companyId } = await context.params;
+  // ?regenerate=1 forces a fresh model run; prior results are kept.
+  const regenerate =
+    new URL(request.url).searchParams.get("regenerate") === "1";
 
   try {
-    const outcome = await compareJapanRiskFactors(companyId);
+    const outcome = await compareJapanRiskFactors(companyId, { regenerate });
 
     if (outcome === null) {
       return errorResponse(

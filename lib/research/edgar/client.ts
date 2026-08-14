@@ -16,9 +16,16 @@ import { paddedCik } from "@/lib/research/universe";
  * requests per page view, throttled and cached.
  */
 
-const EDGAR_USER_AGENT =
-  process.env.EDGAR_USER_AGENT ??
-  "MarketThesis/0.1 (research prototype; contact: set EDGAR_USER_AGENT)";
+// An empty EDGAR_USER_AGENT (e.g. the blank line copied from
+// .env.local.example) must fall back too — ?? alone lets "" through, and
+// an empty User-Agent gets a 403 from EDGAR.
+function edgarUserAgent(): string {
+  const configured = process.env.EDGAR_USER_AGENT?.trim();
+  return configured !== undefined && configured !== ""
+    ? configured
+    : "MarketThesis/0.1 (research prototype; contact: set EDGAR_USER_AGENT)";
+}
+const EDGAR_USER_AGENT = edgarUserAgent();
 
 const REQUEST_TIMEOUT_MS = 15_000;
 const MIN_REQUEST_INTERVAL_MS = 150;

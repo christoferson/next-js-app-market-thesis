@@ -10,15 +10,23 @@ import {
 } from "./edgar/sections";
 import { getAnalysisClient } from "./analysis/get-client";
 import type { NarrativeComparison } from "./analysis/types";
+import {
+  getLatestComparison,
+  listComparisons,
+  saveComparison,
+  type StoredComparison,
+} from "./analysis/comparison-store";
 import { getResearchCompany } from "./universe";
 
 /**
  * R2 "What Changed?" narrative comparison: the two most recent 10-K risk-
  * factor sections, compared by the analysis model with citations.
  *
- * Results are cached in-memory per company: filings change rarely and each
- * analysis costs real money — one Bedrock call per company per server
- * lifetime (or until the cache rolls).
+ * Results persist to the comparison store (data/user/comparisons.sqlite):
+ * the latest result for the current filing pair is served without a model
+ * call; a new filing pair or an explicit regenerate produces a new stored
+ * entry — earlier results are kept as history (model/prompt comparisons
+ * are themselves informative).
  */
 
 export interface NarrativeComparisonResult {
@@ -26,6 +34,10 @@ export interface NarrativeComparisonResult {
   sectionTitle: string;
   current: FilingRef;
   prior: FilingRef;
+  /** When this result was generated (may predate this request). */
+  generatedAt: string;
+  /** Count of earlier stored results for this subject. */
+  priorResultCount: number;
 }
 
 export interface FilingRef {
@@ -44,18 +56,14 @@ export type ComparisonOutcome =
   | NarrativeComparisonResult
   | SectionUnavailableResult;
 
-const cache = new Map<string, ComparisonOutcome>();
-const CACHE_MAX_ENTRIES = 32;
-
 export async function compareRiskFactors(
-  companyId: string
+  companyId: string,
+  options: { regenerate?: boolean } = {}
 ): Promise<ComparisonOutcome | null> {
   const company = getResearchCompany(companyId);
   if (company === null) return null;
 
-  const cached = cache.get(companyId);
-  if (cached !== undefined) return cached;
-
+  const subjectRef = `research:${companyId}`;
   const submissions = await fetchSubmissions(company.cik);
   const { recent } = submissions.filings;
 
@@ -66,11 +74,11 @@ export async function compareRiskFactors(
     if (recent.form[i] === "10-K") tenKs.push({ index: i });
   }
   if (tenKs.length < 2) {
-    return remember(companyId, {
+    return {
       unavailable: true,
       reason:
         "EDGAR lists fewer than two 10-K filings for this company, so a year-over-year comparison is not possible.",
-    });
+    };
   }
 
   const [currentRef, priorRef] = await Promise.all([
@@ -78,17 +86,30 @@ export async function compareRiskFactors(
     toFilingRef(company.cik, recent, tenKs[1]!.index),
   ]);
 
+  // Serve the stored result for this exact filing pair unless the caller
+  // explicitly asked to regenerate (e.g. after a model/prompt change).
+  if (options.regenerate !== true) {
+    const stored = getLatestComparison(
+      subjectRef,
+      currentRef.accessionNumber,
+      priorRef.accessionNumber
+    );
+    if (stored !== null) {
+      return toResult(stored, subjectRef);
+    }
+  }
+
   const [currentSection, priorSection] = await Promise.all([
     loadRiskFactors(currentRef),
     loadRiskFactors(priorRef),
   ]);
 
   if (currentSection === null || priorSection === null) {
-    return remember(companyId, {
+    return {
       unavailable: true,
       reason:
         "The risk-factors section could not be located in one of the filings, so the comparison is unavailable rather than approximated.",
-    });
+    };
   }
 
   const client = getAnalysisClient();
@@ -101,24 +122,32 @@ export async function compareRiskFactors(
     priorText: priorSection,
   });
 
-  return remember(companyId, {
-    comparison,
+  const saved = saveComparison({
+    subjectRef,
     sectionTitle: "Risk Factors (Item 1A)",
-    current: currentRef,
-    prior: priorRef,
+    currentSource: currentRef.accessionNumber,
+    priorSource: priorRef.accessionNumber,
+    currentRef,
+    priorRef,
+    crossLingualNote: null,
+    comparison,
   });
+
+  return toResult(saved, subjectRef);
 }
 
-function remember(
-  companyId: string,
-  outcome: ComparisonOutcome
-): ComparisonOutcome {
-  if (cache.size >= CACHE_MAX_ENTRIES) {
-    const oldest = cache.keys().next().value;
-    if (oldest !== undefined) cache.delete(oldest);
-  }
-  cache.set(companyId, outcome);
-  return outcome;
+function toResult(
+  stored: StoredComparison,
+  subjectRef: string
+): NarrativeComparisonResult {
+  return {
+    comparison: stored.comparison,
+    sectionTitle: stored.sectionTitle,
+    current: stored.currentRef as FilingRef,
+    prior: stored.priorRef as FilingRef,
+    generatedAt: stored.createdAt,
+    priorResultCount: Math.max(0, listComparisons(subjectRef).length - 1),
+  };
 }
 
 interface RecentFilings {

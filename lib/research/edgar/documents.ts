@@ -8,9 +8,15 @@ import { MarketDataError } from "@/lib/market-data/errors";
  * a small LRU keeps at most a handful in memory.
  */
 
-const EDGAR_USER_AGENT =
-  process.env.EDGAR_USER_AGENT ??
-  "MarketThesis/0.1 (research prototype; contact: set EDGAR_USER_AGENT)";
+// Empty-string env values must fall back too (see client.ts) — an empty
+// User-Agent gets a 403 from EDGAR.
+function edgarUserAgent(): string {
+  const configured = process.env.EDGAR_USER_AGENT?.trim();
+  return configured !== undefined && configured !== ""
+    ? configured
+    : "MarketThesis/0.1 (research prototype; contact: set EDGAR_USER_AGENT)";
+}
+const EDGAR_USER_AGENT = edgarUserAgent();
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_DOCUMENT_BYTES = 30 * 1024 * 1024;

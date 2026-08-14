@@ -41,3 +41,6 @@ next-env.d.ts
 
 # EDINET local filing store (R3)
 /data/edinet/
+
+# User data (thesis journal)
+/data/user/

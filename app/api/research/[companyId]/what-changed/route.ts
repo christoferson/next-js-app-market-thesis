@@ -47,13 +47,17 @@ function errorResponse(
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ companyId: string }> }
 ): Promise<NextResponse> {
   const { companyId } = await context.params;
+  // ?regenerate=1 forces a fresh model run (e.g. after a model or prompt
+  // change); the previous result is kept as history, never overwritten.
+  const regenerate =
+    new URL(request.url).searchParams.get("regenerate") === "1";
 
   try {
-    const outcome = await compareRiskFactors(companyId);
+    const outcome = await compareRiskFactors(companyId, { regenerate });
 
     if (outcome === null) {
       return errorResponse(

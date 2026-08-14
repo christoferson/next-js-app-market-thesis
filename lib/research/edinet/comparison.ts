@@ -3,6 +3,12 @@ import "server-only";
 import { getAnalysisClient } from "@/lib/research/analysis/get-client";
 import type { NarrativeComparison } from "@/lib/research/analysis/types";
 import {
+  getLatestComparison,
+  listComparisons,
+  saveComparison,
+  type StoredComparison,
+} from "@/lib/research/analysis/comparison-store";
+import {
   ANNUAL_REPORT_DOC_TYPE,
   redactUrl,
 } from "./client";
@@ -34,6 +40,10 @@ export interface JapanComparisonResult {
   crossLingualNote: string;
   current: JapanFilingRef;
   prior: JapanFilingRef;
+  /** When this result was generated (may predate this request). */
+  generatedAt: string;
+  /** Count of earlier stored results for this subject. */
+  priorResultCount: number;
 }
 
 export interface JapanComparisonUnavailable {
@@ -44,9 +54,6 @@ export interface JapanComparisonUnavailable {
 export type JapanComparisonOutcome =
   | JapanComparisonResult
   | JapanComparisonUnavailable;
-
-const cache = new Map<string, JapanComparisonOutcome>();
-const CACHE_MAX_ENTRIES = 32;
 
 export const CROSS_LINGUAL_NOTE =
   "The source filings are in Japanese; findings and quotes below are " +
@@ -62,14 +69,13 @@ function toRef(filing: StoredFiling): JapanFilingRef {
 }
 
 export async function compareJapanRiskFactors(
-  companyId: string
+  companyId: string,
+  options: { regenerate?: boolean } = {}
 ): Promise<JapanComparisonOutcome | null> {
   const company = getJapanResearchCompany(companyId);
   if (company === null) return null;
 
-  const cached = cache.get(companyId);
-  if (cached !== undefined) return cached;
-
+  const subjectRef = `research-jp:${companyId}`;
   const filings = listCompanyFilings(
     company.edinetCode,
     ANNUAL_REPORT_DOC_TYPE,
@@ -77,20 +83,29 @@ export async function compareJapanRiskFactors(
   );
 
   if (filings.length < 2) {
-    return remember(companyId, {
+    return {
       unavailable: true,
       reason:
         "Fewer than two annual reports are in the local filing store for this company. Run the EDINET sync for the relevant filing windows first (see README).",
-    });
+    };
   }
 
   const [current, prior] = filings as [StoredFiling, StoredFiling];
+
+  // Serve the stored result for this exact filing pair unless regenerating.
+  if (options.regenerate !== true) {
+    const stored = getLatestComparison(subjectRef, current.docId, prior.docId);
+    if (stored !== null) {
+      return toStoredResult(stored, subjectRef);
+    }
+  }
+
   if (current.riskText === null || prior.riskText === null) {
-    return remember(companyId, {
+    return {
       unavailable: true,
       reason:
         "The business-risk section could not be extracted from one of the stored filings, so the comparison is unavailable rather than approximated.",
-    });
+    };
   }
 
   const client = getAnalysisClient();
@@ -104,25 +119,33 @@ export async function compareJapanRiskFactors(
     priorText: prior.riskText,
   });
 
-  return remember(companyId, {
-    comparison,
+  const saved = saveComparison({
+    subjectRef,
     sectionTitle: "Business Risks (事業等のリスク)",
+    currentSource: current.docId,
+    priorSource: prior.docId,
+    currentRef: toRef(current),
+    priorRef: toRef(prior),
     crossLingualNote: CROSS_LINGUAL_NOTE,
-    current: toRef(current),
-    prior: toRef(prior),
+    comparison,
   });
+
+  return toStoredResult(saved, subjectRef);
 }
 
-function remember(
-  companyId: string,
-  outcome: JapanComparisonOutcome
-): JapanComparisonOutcome {
-  if (cache.size >= CACHE_MAX_ENTRIES) {
-    const oldest = cache.keys().next().value;
-    if (oldest !== undefined) cache.delete(oldest);
-  }
-  cache.set(companyId, outcome);
-  return outcome;
+function toStoredResult(
+  stored: StoredComparison,
+  subjectRef: string
+): JapanComparisonResult {
+  return {
+    comparison: stored.comparison,
+    sectionTitle: stored.sectionTitle,
+    crossLingualNote: stored.crossLingualNote ?? CROSS_LINGUAL_NOTE,
+    current: stored.currentRef as JapanFilingRef,
+    prior: stored.priorRef as JapanFilingRef,
+    generatedAt: stored.createdAt,
+    priorResultCount: Math.max(0, listComparisons(subjectRef).length - 1),
+  };
 }
 
 function periodLabel(filing: StoredFiling): string {

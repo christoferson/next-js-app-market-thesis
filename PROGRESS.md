@@ -2,14 +2,16 @@
 
 ## Current milestone
 
-Phase R, milestone R3 — Japanese filings via EDINET (local SQLite store,
-cross-lingual comparison).
+Phase C, milestone C1 — Contradiction Engine (evidence checks against
+thesis claims).
 
 ## Status
 
-R3 complete; all required checks pass and the cross-lingual pipeline was
-verified end to end with a live Bedrock call over real EDINET filings.
-Discovery remains complete as a demo release (see below).
+C1 complete; all required checks pass (1,102 unit tests, full e2e suite)
+and the engine was verified end to end with a live Bedrock evaluation over
+real EDINET evidence. Discovery remains complete as a demo release;
+Phase R (R1–R3) and Phase T (T1) complete. The full product workflow —
+Discover → Investigate → Decide → Review — now exists.
 
 ## Completed milestones
 
@@ -23,6 +25,8 @@ Discovery remains complete as a demo release (see below).
 - R1 — US filing timeline + deterministic change detection (2026-08-10)
 - R2 — AI narrative comparison of 10-K risk factors via Bedrock (2026-08-10)
 - R3 — Japanese filings via EDINET + cross-lingual comparison (2026-08-10)
+- T1 — Investment Thesis Journal: create/revise/journal (2026-08-14)
+- C1 — Contradiction Engine: evidence checks with overrides (2026-08-14)
 
 ## In progress
 
@@ -123,6 +127,119 @@ Discovery remains complete as a demo release (see below).
   is treated as not-set instead of an active zero-threshold filter
   (Number("") is 0, which would have excluded every fund with a published
   expense ratio).
+
+## Comparison persistence (post-C1 improvement, 2026-08-14)
+
+- AI narrative comparisons (R2 US / R3 JP) moved from in-memory caches to a
+  persistent history store (`data/user/comparisons.sqlite`) — a server
+  restart no longer re-bills a comparison already paid for.
+- Designed as HISTORY, not cache (user request): every generated result is
+  kept; `?regenerate=1` (UI "Regenerate" button) runs a fresh model call —
+  e.g. after switching models — and appends, never overwrites. The latest
+  result for the current filing pair is served by default; a new filing
+  naturally produces a fresh generation (pair mismatch), while model/prompt
+  changes only take effect through explicit regeneration.
+- UI shows "Result generated {date}", earlier-result counts, and the
+  regenerate control. Live-verified end to end: generate (~13s, billed) →
+  instant re-serve (0.02s) → instant after server restart (0.4s) →
+  regenerate (new result, old preserved, priorResults=1).
+- EDGAR data stays runtime-fetched (free, keyless, 15-min in-memory TTL) —
+  persisting it would add staleness for no cost saving. Market-data caching
+  proper is deferred to D5 (Finnhub free tier has real rate limits).
+- 39 new store tests (1,141 total): history semantics, pair matching,
+  model-independence of reads, shape-agnostic refs, persistence.
+
+## C1 decisions
+
+- Evidence gathering reuses the R1–R3 pipelines: US subjects get
+  deterministic XBRL annual changes plus the latest 10-K risk narrative;
+  Japanese subjects get the stored EDINET risk text. Demo subjects are
+  honestly unsupported (fictional instruments have no filings). Zero
+  evidence yields an "insufficient evidence" outcome — never a guess.
+- Classification uses the SPEC §25 six-value scale (Strongly Supports →
+  Strongly Contradicts, Insufficient Evidence). The prompt hard-codes:
+  judge only from provided evidence, INSUFFICIENT_EVIDENCE over guessing,
+  contradictions mean REVIEW, never suggest buying or selling.
+- Every evaluation preserves the full SPEC-required record: claim,
+  evidence summary + as-of date + sources, classification, rationale,
+  verbatim excerpts, model ID, prompt version (claim-evaluation-v1,
+  pinned by test), timestamp.
+- User overrides annotate — never replace — the AI classification (both
+  are always shown; deep-equality tested). Claims the model fails to
+  address become explicit INSUFFICIENT_EVIDENCE rows, never silently
+  absent.
+- Each check appends a journal note to the thesis (the decision record
+  stays complete); verdicts live in the evaluation history table
+  (data/user/evaluations.sqlite, append-only with the same
+  export-surface-pinning test pattern as T1).
+- Checks are on-demand only (paid model call). Schema-mismatch failures
+  log issue paths (not filing content) for diagnosability; run ordering
+  uses a rowid tiebreak so same-millisecond runs stay deterministic
+  (subagent review finding).
+- Live verification (Nintendo thesis over real EDINET evidence): the
+  engine STRONGLY_SUPPORTS the platform-strategy claim with verbatim
+  Japanese excerpts, and MODERATELY_CONTRADICTS an FX-risk claim —
+  correctly reading that the filing flags FX as a risk against the
+  claim's "manageable" framing. Override flow verified: AI classification
+  preserved alongside the user's NEUTRAL override and note.
+
+## C1 verification
+
+Run on 2026-08-14 (Node 22.14.0, Windows):
+
+- `npm run lint` / `npm run typecheck` / `npm run build` — pass.
+- `npm run test` — pass: 32 files, 1,102 unit tests (102 new: prompt
+  pinning and language rules, output schema clipping, wire/Zod
+  cross-checks, evaluation store round-trips, override annotate-not-
+  replace contract, export-surface pinning, persistence).
+- `npx playwright test` — 55 passed (desktop + mobile).
+- Live end-to-end: thesis creation → evidence gathering from the local
+  EDINET store → Bedrock evaluation → stored run with provenance →
+  user override → journal note (results above). One transient
+  model-output schema mismatch was observed before the successful run;
+  diagnostic logging was added for future occurrences.
+
+## T1 decisions
+
+- Theses live in a second gitignored SQLite file
+  (`data/user/theses.sqlite`), same better-sqlite3 dependency as the R3
+  filing store. This is the first persistent USER data — local-only,
+  no account, which the UI states plainly.
+- Immutability is structural: the store module has no UPDATE/DELETE for
+  versions or journal entries (a test pins the exact export list, so any
+  new destructive export fails CI and forces a deliberate decision).
+  Revising creates version N+1; every prior version is preserved
+  byte-identical (deep-equal asserted in tests before/after revision).
+- Claims are measurable by design: kind, falsifiable statement, optional
+  baseline/target/invalidation values (decimals per house rules), deadline,
+  importance 1–3 — the shape Phase C's Contradiction Engine will test
+  evidence against. Claim IDs carry across revisions for continuity, but
+  only IDs from the same thesis's history are accepted (foreign IDs are
+  replaced); create-time IDs are rejected outright.
+- Revisions require a "what changed and why" note; status changes require
+  a note; both land in the append-only journal alongside free-form notes.
+- Deadlines are validated as real calendar dates (2027-02-30 rejected) —
+  Phase C will compare them to evidence dates.
+- Deterministic only: no AI drafting or scoring of theses in T1; subject
+  linking is by typed reference (demo:/research:/research-jp:) with links
+  to the corresponding pages, no lookup UI yet.
+- Subagent review contributed three hardening fixes (calendar dates,
+  create/revise claim-ID split, foreign-ID guard) and one HTML-validity
+  fix in the claim fieldset.
+
+## T1 verification
+
+Run on 2026-08-14 (Node 22.14.0, Windows):
+
+- `npm run lint` / `npm run typecheck` / `npm run build` — pass.
+- `npm run test` — pass: 30 files, 1,000 unit tests (177 new: store
+  integrity incl. version immutability and export-surface pinning,
+  validation contracts incl. strictness and injection attempts).
+- `npx playwright test` — 54 passed across desktop + mobile projects.
+- Runtime round-trips verified: create (201) → list → detail → revise
+  (v2 created, v1 intact, claim ID continuity) → note → status change →
+  journal chronology; invalid input → 400 with per-field details;
+  unknown/malformed IDs → 404.
 
 ## R3 decisions
 
@@ -396,15 +513,17 @@ Key evaluation findings recorded for future D5 work:
 
 ## Next proposed milestone
 
-Phase R is functionally complete (R1–R3). Candidate next steps, each
-requiring explicit approval:
+The core workflow (Discover → Investigate → Decide → Review) is complete.
+Candidate next steps, each requiring explicit approval:
 
-- R4 (polish): widen the research universes, add MD&A/semiannual
-  comparisons, free-text company lookup, e2e coverage for research pages,
-  scheduled EDINET sync.
-- Phase T — Investment Thesis Journal (SPEC §25): user-written theses with
-  measurable claims; first persistent user data.
-- D5 live market data: select a provider (evaluations ready under
-  docs/references/).
+- C2/T2 — workflow polish: "Write a thesis" links on research pages,
+  subject lookup instead of free text, evidence checks that include
+  numeric XBRL deltas for JP subjects, scheduled checks, e2e coverage
+  for thesis/check flows, Claude-assisted claim structuring.
+- D5 live market data: user preferences already recorded (personal, free
+  tier, delayed OK, US-first, indices via ETF proxies) — needs only a
+  Finnhub API key to begin.
+- Phase P — Portfolio tracking (SPEC §25): manual transactions, cost
+  basis, USD/JPY positions; the largest remaining phase.
 
 None is authorized until the user explicitly approves one.

@@ -52,7 +52,8 @@ const ANALYSIS_EXTRA_NOTE =
   "fiscal year against the one before it.";
 
 const ANALYSIS_COST_NOTE =
-  "Uses an AI model via AWS Bedrock. Takes up to a minute.";
+  "Uses an AI model via AWS Bedrock when no stored result exists. First run " +
+  "takes up to a minute.";
 
 const ANALYSIS_LOADING_NOTE =
   "Comparing filings — Japanese source text, English findings. Takes up to a " +

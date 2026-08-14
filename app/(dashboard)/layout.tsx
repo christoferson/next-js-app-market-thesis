@@ -6,6 +6,7 @@ const NAV_LINKS: readonly NavLink[] = [
   { href: "/discover", label: "Discover" },
   { href: "/research", label: "Research" },
   { href: "/theses", label: "Theses" },
+  { href: "/portfolio", label: "Portfolio" },
   { href: "/watchlist", label: "Watchlist" },
   { href: "/about", label: "About" },
 ];

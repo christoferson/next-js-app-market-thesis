@@ -2,16 +2,15 @@
 
 ## Current milestone
 
-Phase C, milestone C1 — Contradiction Engine (evidence checks against
-thesis claims).
+Phase P, milestone P1 — Portfolio tracking (manual ledger, positions,
+per-currency totals, price marks).
 
 ## Status
 
-C1 complete; all required checks pass (1,102 unit tests, full e2e suite)
-and the engine was verified end to end with a live Bedrock evaluation over
-real EDINET evidence. Discovery remains complete as a demo release;
-Phase R (R1–R3) and Phase T (T1) complete. The full product workflow —
-Discover → Investigate → Decide → Review — now exists.
+P1 complete; all required checks pass (1,384 unit tests, full e2e suite)
+with live arithmetic verification. Every SPEC phase now has a working
+milestone: Discovery (demo release), Research (R1–R3), Thesis (T1),
+Contradiction Engine (C1), Portfolio (P1).
 
 ## Completed milestones
 
@@ -27,6 +26,7 @@ Discover → Investigate → Decide → Review — now exists.
 - R3 — Japanese filings via EDINET + cross-lingual comparison (2026-08-10)
 - T1 — Investment Thesis Journal: create/revise/journal (2026-08-14)
 - C1 — Contradiction Engine: evidence checks with overrides (2026-08-14)
+- P1 — Portfolio tracking: ledger, positions, marks (2026-08-14)
 
 ## In progress
 
@@ -127,6 +127,49 @@ Discover → Investigate → Decide → Review — now exists.
   is treated as not-set instead of an active zero-threshold filter
   (Number("") is 0, which would have excluded every fund with a published
   expense ratio).
+
+## P1 decisions
+
+- Manual ledger only (no broker connections, per SPEC): buys, sells,
+  dividends, each with optional fee and note, stored in
+  `data/user/portfolio.sqlite`. Transactions are deletable (bookkeeping
+  corrections, unlike thesis history); positions recalculate from the
+  remaining ledger.
+- Cost basis: MOVING AVERAGE (the standard method for Japanese tax
+  purposes), stated in the UI. Sell realized gain = net proceeds − shares ×
+  average cost; average cost unchanged by sells; float-dust zeroing on
+  full exits; verified against exact hand arithmetic in tests and live.
+- No live prices exist, so unrealized values come only from user-recorded
+  PRICE MARKS, always displayed with their as-of date; open positions
+  without marks show — and are excluded from marked totals with an
+  explicit count ("N open positions have no price mark and are not
+  included").
+- USD and JPY are never combined: two separate total cards, no grand
+  total anywhere (asserted in tests and verified against rendered HTML).
+  A mark in a different currency than its position is ignored entirely.
+- Sells are validated against the holding as of their date (chronological
+  replay, 1e-9 float tolerance) — an oversell is rejected with guidance,
+  never recorded. Defense-in-depth: the validator also filters by subject
+  so a mixed ledger can never fund a sell (subagent review finding,
+  hardened same day along with the mark-currency guard and a USD-then-JPY
+  ordering fix).
+- Dividend income is reported gross; withholding/fees appear in the fees
+  line (pinned by test as deliberate).
+
+## P1 verification
+
+Run on 2026-08-14 (Node 22.14.0, Windows):
+
+- `npm run lint` / `npm run typecheck` / `npm run build` — pass.
+- `npm run test` — pass: 36 files, 1,384 unit tests (243 new: moving-
+  average arithmetic against hand-computed values, FIFO-drift guard,
+  oversell replay, currency separation, honesty fields, store round-trips,
+  kind-specific validation).
+- `npx playwright test` — 55 passed.
+- Live arithmetic verification: 10@400+fee1, 5@420, sell 3@450, dividend,
+  JPY position, mark @430 → rendered avg cost $406.73, realized +$129.80,
+  mark value $5,160.00, unrealized +$279.20, separate USD/JPY cards,
+  unmarked-position honesty line — all matching hand calculation.
 
 ## Comparison persistence (post-C1 improvement, 2026-08-14)
 
@@ -513,17 +556,18 @@ Key evaluation findings recorded for future D5 work:
 
 ## Next proposed milestone
 
-The core workflow (Discover → Investigate → Decide → Review) is complete.
-Candidate next steps, each requiring explicit approval:
+Every SPEC phase now has a working first milestone. Candidate next steps,
+each requiring explicit approval:
 
-- C2/T2 — workflow polish: "Write a thesis" links on research pages,
-  subject lookup instead of free text, evidence checks that include
-  numeric XBRL deltas for JP subjects, scheduled checks, e2e coverage
-  for thesis/check flows, Claude-assisted claim structuring.
-- D5 live market data: user preferences already recorded (personal, free
-  tier, delayed OK, US-first, indices via ETF proxies) — needs only a
-  Finnhub API key to begin.
-- Phase P — Portfolio tracking (SPEC §25): manual transactions, cost
-  basis, USD/JPY positions; the largest remaining phase.
+- Cross-phase integration polish: thesis health shown on portfolio rows
+  (linking positions to theses by subjectRef — SPEC §25 "thesis health by
+  position"), "Write a thesis" / "Add transaction" links on research
+  pages, subject lookup instead of free text, e2e coverage for
+  thesis/check/portfolio flows.
+- D5 live market data: preferences recorded (personal, free tier, delayed
+  OK, US-first) — needs only a Finnhub API key; would also auto-populate
+  price marks.
+- P2 — portfolio depth: CSV import, allocation/concentration views,
+  time-weighted returns (needs price history), multiple accounts.
 
 None is authorized until the user explicitly approves one.

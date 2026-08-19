@@ -5,6 +5,8 @@ import type { Metadata } from "next";
 import { formatDate } from "@/lib/format";
 import { listEvaluationRuns } from "@/lib/contradiction/store";
 import { isAnalysisEnabled } from "@/lib/research/analysis/get-client";
+import { listTransactions } from "@/lib/portfolio/store";
+import { subjectHref } from "@/lib/subjects/registry";
 import { getThesis, listJournal } from "@/lib/thesis/store";
 import type {
   JournalEntry,
@@ -21,7 +23,6 @@ import {
   JOURNAL_KIND_LABEL,
   THESIS_STATUS_DESCRIPTION,
   THESIS_STATUS_LABEL,
-  subjectHref,
 } from "@/components/thesis/labels";
 
 /**
@@ -99,8 +100,16 @@ function currentVersion(thesis: ThesisWithHistory): ThesisVersion {
 
 /* ------------------------------------------------------------------ header */
 
-function ThesisHeader({ thesis }: { thesis: ThesisWithHistory }) {
+function ThesisHeader({
+  thesis,
+  hasLedgerEntries,
+}: {
+  thesis: ThesisWithHistory;
+  hasLedgerEntries: boolean;
+}) {
   const version = currentVersion(thesis);
+  // The registry resolves the route, so a subject the application does not know
+  // reads as plain text rather than linking to a page that would 404.
   const href = subjectHref(thesis.subjectRef);
 
   return (
@@ -124,6 +133,19 @@ function ThesisHeader({ thesis }: { thesis: ThesisWithHistory }) {
           </Link>
         )}
       </p>
+
+      {/* The ledger is only offered when it has something to show for this
+          subject; there is no per-subject portfolio page to link to otherwise. */}
+      {hasLedgerEntries ? (
+        <p className="text-sm">
+          <Link
+            href={`/portfolio?subject=${encodeURIComponent(thesis.subjectRef)}`}
+            className={LINK_CLASS}
+          >
+            View position in Portfolio
+          </Link>
+        </p>
+      ) : null}
 
       <p className="text-xs text-stone-600">
         {`Version ${thesis.currentVersion} · created ${formatDate(thesis.createdAt)} · updated ${formatDate(thesis.updatedAt)}`}
@@ -418,6 +440,7 @@ export default async function ThesisDetailPage({
   const version = currentVersion(thesis);
   const journal = listJournal(thesis.id);
   const evaluationRuns = listEvaluationRuns(thesis.id);
+  const hasLedgerEntries = listTransactions(thesis.subjectRef).length > 0;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -428,7 +451,7 @@ export default async function ThesisDetailPage({
         ← Back to Theses
       </Link>
 
-      <ThesisHeader thesis={thesis} />
+      <ThesisHeader thesis={thesis} hasLedgerEntries={hasLedgerEntries} />
       <ReasoningSection version={version} />
       <ClaimsSection version={version} />
       {/*

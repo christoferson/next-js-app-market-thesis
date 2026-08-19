@@ -12,6 +12,7 @@ import {
 } from "@/lib/format";
 import { MarketDataError } from "@/lib/market-data/errors";
 import { WhatChangedSection as NarrativeComparisonSection } from "@/components/research/what-changed-section";
+import { SubjectActions } from "@/components/research/subject-actions";
 // Server-only gate. The client component never imports the analysis config, so
 // whether AI is enabled is decided here and reflected in what gets rendered.
 import { isAnalysisEnabled } from "@/lib/research/analysis/get-client";
@@ -481,6 +482,10 @@ function EdgarUnavailable({
         <p className="text-sm text-stone-700">{company.name}</p>
       </div>
 
+      {/* The actions do not depend on EDGAR: a thesis can still be written
+          about the company while its filings are unreadable. */}
+      <SubjectActions subjectRef={`research:${company.id}`} />
+
       <section role="alert" className={SECTION_CLASS}>
         <h2 className={SECTION_HEADING_CLASS}>
           SEC EDGAR is temporarily unavailable
@@ -568,6 +573,7 @@ export default async function CompanyResearchPage({
     <div className="space-y-6">
       <BackLink />
       <ResearchHeader research={research} />
+      <SubjectActions subjectRef={`research:${research.company.id}`} />
       {/* Deterministic figures first; the AI narrative comparison follows. */}
       <WhatChangedSection research={research} />
       {isAnalysisEnabled() ? (

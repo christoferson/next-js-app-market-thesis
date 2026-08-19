@@ -5,7 +5,12 @@ import { MISSING_DISPLAY, formatCurrency, formatDate } from "@/lib/format";
 import { getPortfolio } from "@/lib/portfolio/service";
 import { listTransactions } from "@/lib/portfolio/store";
 import type { CurrencyTotals, Position } from "@/lib/portfolio/types";
-import { subjectHref } from "@/components/thesis/labels";
+import {
+  getThesisHealthBySubject,
+  type SubjectThesisHealth,
+} from "@/lib/subjects/health";
+import { resolveSubject, subjectHref } from "@/lib/subjects/registry";
+import { THESIS_STATUS_LABEL } from "@/components/thesis/labels";
 import { Ledger } from "@/components/portfolio/ledger";
 import {
   PriceMarkForm,
@@ -156,7 +161,74 @@ function SubjectCell({ position }: { position: Position }) {
   );
 }
 
-function PositionRow({ position }: { position: Position }) {
+const THESIS_LINK_CLASS =
+  "rounded-sm text-stone-800 underline decoration-stone-400 underline-offset-2 transition-colors motion-reduce:transition-none hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
+
+/**
+ * What the user's own reasoning says about this holding (SPEC §25). It reports
+ * state — the thesis, its status, and what the last evidence check found — and
+ * never an instruction: a contradicted claim reads as something to review, and
+ * price performance stays in its own columns.
+ */
+function ThesisCell({
+  position,
+  health,
+}: {
+  position: Position;
+  health: SubjectThesisHealth | undefined;
+}) {
+  const theses = health?.theses ?? [];
+
+  if (theses.length === 0) {
+    return (
+      <div className="text-[11px] leading-relaxed">
+        <Link
+          href={`/theses/new?subject=${encodeURIComponent(position.subjectRef)}`}
+          className={THESIS_LINK_CLASS}
+        >
+          Write a thesis
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <ul className="space-y-1.5">
+      {theses.map((thesis) => (
+        <li key={thesis.thesisId} className="space-y-0.5">
+          <Link
+            href={`/theses/${thesis.thesisId}`}
+            title={thesis.title}
+            className={`block max-w-[14rem] truncate text-xs ${THESIS_LINK_CLASS}`}
+          >
+            {thesis.title}
+          </Link>
+          <span className="block text-[11px] text-stone-600">
+            {THESIS_STATUS_LABEL[thesis.status]}
+          </span>
+          {thesis.lastCheck === null ? null : (
+            <span className="block text-[11px] text-stone-600">
+              {`Checked ${formatDate(thesis.lastCheck.checkedAt)}: ${thesis.lastCheck.contradictedCount} contradicted / ${thesis.lastCheck.supportedCount} supported${
+                thesis.lastCheck.hasOverrides ? " (with your overrides)" : ""
+              }`}
+            </span>
+          )}
+          {thesis.lastCheck !== null && thesis.lastCheck.contradictedCount > 0 ? (
+            <span className="block text-[11px] text-stone-600">review</span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PositionRow({
+  position,
+  health,
+}: {
+  position: Position;
+  health: SubjectThesisHealth | undefined;
+}) {
   const closed = position.quantity === 0;
   const cellClass = closed ? `${CELL_CLASS} text-stone-600` : CELL_CLASS;
   const numericClass = closed
@@ -203,6 +275,9 @@ function PositionRow({ position }: { position: Position }) {
       <td className={numericClass}>
         {formatCurrency(position.dividendIncome, position.currency)}
       </td>
+      <td className={cellClass}>
+        <ThesisCell position={position} health={health} />
+      </td>
     </tr>
   );
 }
@@ -218,9 +293,16 @@ const POSITION_COLUMNS: ReadonlyArray<{ label: string; numeric: boolean }> = [
   { label: "Unrealized", numeric: true },
   { label: "Realized", numeric: true },
   { label: "Dividends", numeric: true },
+  { label: "Thesis", numeric: false },
 ];
 
-function PositionsTable({ positions }: { positions: readonly Position[] }) {
+function PositionsTable({
+  positions,
+  healthBySubject,
+}: {
+  positions: readonly Position[];
+  healthBySubject: Map<string, SubjectThesisHealth>;
+}) {
   return (
     <div className="overflow-x-auto rounded-md border border-stone-200 bg-white">
       <table className={TABLE_CLASS}>
@@ -228,8 +310,10 @@ function PositionsTable({ positions }: { positions: readonly Position[] }) {
           Your positions, open ones first, each in its own currency: quantity
           held, moving-average cost, cost basis, the latest price you recorded
           with its date, and the resulting value alongside realized gains and
-          dividends. Unrealized values exist only where a price mark does.
-          Unavailable values are shown as an em dash.
+          dividends. The last column links to the thesis you wrote for the
+          holding, with what the most recent evidence check found. Unrealized
+          values exist only where a price mark does. Unavailable values are
+          shown as an em dash.
         </caption>
         <thead>
           <tr>
@@ -248,7 +332,11 @@ function PositionsTable({ positions }: { positions: readonly Position[] }) {
         </thead>
         <tbody>
           {positions.map((position) => (
-            <PositionRow key={position.subjectRef} position={position} />
+            <PositionRow
+              key={position.subjectRef}
+              position={position}
+              health={healthBySubject.get(position.subjectRef)}
+            />
           ))}
         </tbody>
       </table>
@@ -256,9 +344,24 @@ function PositionsTable({ positions }: { positions: readonly Position[] }) {
   );
 }
 
-export default function PortfolioPage() {
+export default async function PortfolioPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { positions, totals } = getPortfolio();
   const transactions = listTransactions();
+
+  // One batched join rather than a lookup per row.
+  const healthBySubject = getThesisHealthBySubject(
+    positions.map((position) => position.subjectRef)
+  );
+
+  // A subject arrived at from a research page or a thesis prefills the entry
+  // form; an unknown reference is ignored rather than typed into it.
+  const params = await searchParams;
+  const requestedSubject =
+    typeof params.subject === "string" ? resolveSubject(params.subject) : null;
 
   const openPositions: PriceMarkOption[] = positions
     .filter((position) => position.quantity > 0)
@@ -314,7 +417,10 @@ export default function PortfolioPage() {
             </p>
           </div>
         ) : (
-          <PositionsTable positions={positions} />
+          <PositionsTable
+            positions={positions}
+            healthBySubject={healthBySubject}
+          />
         )}
 
         <p className="max-w-3xl text-xs leading-relaxed text-stone-600">
@@ -330,7 +436,17 @@ export default function PortfolioPage() {
           Entries are recorded exactly as you enter them. Positions, cost basis
           and realized gains are calculated from the ledger, never stored.
         </p>
-        <TransactionForm />
+        <TransactionForm
+          initialSubject={
+            requestedSubject === null
+              ? null
+              : {
+                  ref: requestedSubject.ref,
+                  label: requestedSubject.label,
+                  currency: requestedSubject.currency,
+                }
+          }
+        />
       </section>
 
       {openPositions.length > 0 ? (

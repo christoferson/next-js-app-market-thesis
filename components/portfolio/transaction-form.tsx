@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 
 import type { SupportedCurrency } from "@/lib/domain";
 import type { TransactionKind } from "@/lib/portfolio/types";
-import {
-  SUBJECT_SCOPES,
-  SUBJECT_SCOPE_LABEL,
-  type SubjectScope,
-} from "@/components/thesis/labels";
+import { SubjectPicker } from "@/components/shared/subject-picker";
 import { Field, SelectField } from "./fields";
 import { postPortfolio, type FieldErrors } from "./api";
 import {
@@ -34,15 +30,11 @@ import {
  * mapped back onto the same inputs.
  */
 
-const SUBJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,99}$/;
+const SUBJECT_REF_PATTERN =
+  /^(demo|research|research-jp):[a-z0-9][a-z0-9-]{0,99}$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_LABEL_LENGTH = 200;
 const MAX_NOTE_LENGTH = 500;
-
-const SUBJECT_SCOPE_OPTIONS = SUBJECT_SCOPES.map((scope) => ({
-  value: scope,
-  label: SUBJECT_SCOPE_LABEL[scope],
-}));
 
 const CURRENCY_OPTIONS = CURRENCIES.map((currency) => ({
   value: currency,
@@ -101,15 +93,29 @@ function isRealDate(value: string): boolean {
   );
 }
 
-export function TransactionForm() {
+/** A subject arrived at from elsewhere (a research page, a thesis). */
+export interface TransactionFormInitialSubject {
+  ref: string;
+  label: string;
+  currency: SupportedCurrency;
+}
+
+export function TransactionForm({
+  initialSubject = null,
+}: {
+  initialSubject?: TransactionFormInitialSubject | null;
+} = {}) {
   const router = useRouter();
   const idPrefix = useId();
 
   const [kind, setKind] = useState<TransactionKind>("buy");
-  const [subjectScope, setSubjectScope] = useState<SubjectScope>("research");
-  const [subjectId, setSubjectId] = useState("");
-  const [subjectLabel, setSubjectLabel] = useState("");
-  const [currency, setCurrency] = useState<SupportedCurrency>("USD");
+  const [subjectRef, setSubjectRef] = useState(initialSubject?.ref ?? "");
+  const [subjectLabel, setSubjectLabel] = useState(
+    initialSubject?.label ?? ""
+  );
+  const [currency, setCurrency] = useState<SupportedCurrency>(
+    initialSubject?.currency ?? "USD"
+  );
   const [date, setDate] = useState("");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
@@ -131,10 +137,12 @@ export function TransactionForm() {
   function buildPayload(): TransactionPayload | null {
     const errors: FieldErrors = {};
 
-    const normalizedId = subjectId.trim().toLowerCase();
-    if (!SUBJECT_ID_PATTERN.test(normalizedId)) {
+    const trimmedRef = subjectRef.trim();
+    if (trimmedRef === "") {
+      errors.subjectRef = "Choose what this entry is for.";
+    } else if (!SUBJECT_REF_PATTERN.test(trimmedRef)) {
       errors.subjectRef =
-        "Enter an identifier using lowercase letters, digits and hyphens.";
+        "Use a reference of the form demo:identifier, research:identifier or research-jp:identifier.";
     }
 
     const trimmedLabel = subjectLabel.trim();
@@ -198,7 +206,7 @@ export function TransactionForm() {
     setFieldErrors({});
     setFormError(null);
     return {
-      subjectRef: `${subjectScope}:${normalizedId}`,
+      subjectRef: trimmedRef,
       subjectLabel: trimmedLabel,
       currency,
       kind,
@@ -271,40 +279,24 @@ export function TransactionForm() {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SelectField
-            id={fieldId("subjectScope")}
-            label="Subject type"
-            value={subjectScope}
-            options={SUBJECT_SCOPE_OPTIONS}
+        <div className="sm:max-w-md">
+          <SubjectPicker
+            id={fieldId("subjectRef")}
+            label="Subject"
+            hint="Research companies and demo instruments this application already knows."
+            value={subjectRef}
+            error={fieldErrors.subjectRef ?? fieldErrors.subjectLabel}
             disabled={isSubmitting}
-            onChange={(raw) => {
-              const scope = SUBJECT_SCOPES.find((candidate) => candidate === raw);
-              if (scope !== undefined) setSubjectScope(scope);
+            onChange={(subject) => {
+              setSubjectRef(subject?.ref ?? "");
+              setSubjectLabel(subject?.label ?? "");
+              // The subject's native currency is offered as the settlement
+              // currency; it stays a selection, since the same company can be
+              // bought on another exchange in another currency.
+              if (subject?.currency != null) setCurrency(subject.currency);
             }}
           />
-          <Field
-            id={fieldId("subjectRef")}
-            label="Subject identifier"
-            hint="e.g. msft, nintendo, stock-us-northstar-software"
-            value={subjectId}
-            onChange={setSubjectId}
-            error={fieldErrors.subjectRef}
-            required
-            disabled={isSubmitting}
-          />
         </div>
-
-        <Field
-          id={fieldId("subjectLabel")}
-          label="Subject label"
-          hint="How it should read in the ledger, e.g. Microsoft (MSFT)."
-          value={subjectLabel}
-          onChange={setSubjectLabel}
-          error={fieldErrors.subjectLabel}
-          required
-          disabled={isSubmitting}
-        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField

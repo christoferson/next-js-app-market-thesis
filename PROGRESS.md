@@ -2,15 +2,17 @@
 
 ## Current milestone
 
-Phase P, milestone P1 — Portfolio tracking (manual ledger, positions,
-per-currency totals, price marks).
+Cross-phase integration — subject registry, thesis health on positions,
+workflow links.
 
 ## Status
 
-P1 complete; all required checks pass (1,384 unit tests, full e2e suite)
-with live arithmetic verification. Every SPEC phase now has a working
-milestone: Discovery (demo release), Research (R1–R3), Thesis (T1),
-Contradiction Engine (C1), Portfolio (P1).
+Cross-phase integration complete; all required checks pass (1,475 unit
+tests, 59 e2e). Every SPEC phase has a working milestone — Discovery (demo
+release), Research (R1–R3), Thesis (T1), Contradiction Engine (C1),
+Portfolio (P1) — and the phases now reference each other: positions show
+thesis health, research pages link into theses and the portfolio, and all
+subject entry goes through a validated picker.
 
 ## Completed milestones
 
@@ -27,6 +29,7 @@ Contradiction Engine (C1), Portfolio (P1).
 - T1 — Investment Thesis Journal: create/revise/journal (2026-08-14)
 - C1 — Contradiction Engine: evidence checks with overrides (2026-08-14)
 - P1 — Portfolio tracking: ledger, positions, marks (2026-08-14)
+- Cross-phase integration: registry, health, links, pickers (2026-08-15)
 
 ## In progress
 
@@ -127,6 +130,34 @@ Contradiction Engine (C1), Portfolio (P1).
   is treated as not-set instead of an active zero-threshold filter
   (Number("") is 0, which would have excluded every fund with a published
   expense ratio).
+
+## Cross-phase integration decisions (2026-08-15)
+
+- `lib/subjects/registry.ts` is the single source of truth for valid
+  subjects (42: 10 US research, 6 JP research, 26 demo) with labels,
+  currencies, and routes. All subject entry (thesis, transaction forms)
+  goes through a picker fed by `/api/subjects` — free-text `scope:id`
+  entry survives only as the picker's offline fallback, killing the
+  silent-typo failure class (research:mfst).
+- `lib/subjects/health.ts` implements SPEC §25 "thesis health by
+  position": portfolio rows show each position's theses with status and
+  the latest evidence-check summary (contradicted/supported counts).
+  A user override is the effective reading for the counts; the AI
+  classification stays preserved underneath. Positions without a thesis
+  show "Write a thesis" — holding without a recorded why is itself the
+  signal. Health is descriptive state, never a judgment (contradiction =
+  "review").
+- Research pages (US + JP) gained an actions row ("Write a thesis",
+  "Record a transaction" — with subject prefill via query params) and a
+  thesis-health strip; the actions render even when EDGAR is unavailable.
+  Thesis pages link to the portfolio when transactions exist for the
+  subject; the picker auto-selects the subject's native currency in the
+  transaction form (still overridable for ADR cases).
+- First e2e coverage beyond Discovery: a cross-phase spec walks
+  thesis-creation via picker → portfolio buy → thesis-health link
+  round-trip, deterministic on demo subjects.
+- Verification: 1,475 unit tests (91 new for registry + health, incl.
+  override-direction effects on health counts), 59 e2e passed.
 
 ## P1 decisions
 
@@ -556,18 +587,14 @@ Key evaluation findings recorded for future D5 work:
 
 ## Next proposed milestone
 
-Every SPEC phase now has a working first milestone. Candidate next steps,
-each requiring explicit approval:
+Candidate next steps, each requiring explicit approval:
 
-- Cross-phase integration polish: thesis health shown on portfolio rows
-  (linking positions to theses by subjectRef — SPEC §25 "thesis health by
-  position"), "Write a thesis" / "Add transaction" links on research
-  pages, subject lookup instead of free text, e2e coverage for
-  thesis/check/portfolio flows.
 - D5 live market data: preferences recorded (personal, free tier, delayed
   OK, US-first) — needs only a Finnhub API key; would also auto-populate
-  price marks.
-- P2 — portfolio depth: CSV import, allocation/concentration views,
-  time-weighted returns (needs price history), multiple accounts.
+  portfolio price marks, unblocking most of P2.
+- P2 — portfolio depth: CSV import now; allocation views and
+  time-weighted returns after D5 provides price history.
+- Widen the research universes (more US/JP companies) — mostly registry
+  entries plus EDINET sync windows.
 
 None is authorized until the user explicitly approves one.

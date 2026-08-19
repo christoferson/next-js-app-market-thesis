@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 
 import { formatDate, MISSING_DISPLAY } from "@/lib/format";
 import { WhatChangedSection } from "@/components/research/what-changed-section";
+import { SubjectActions } from "@/components/research/subject-actions";
 // Server-only gate. The client component never imports the analysis config, so
 // whether AI is enabled is decided here and reflected in what gets rendered.
 import { isAnalysisEnabled } from "@/lib/research/analysis/get-client";
@@ -288,6 +289,7 @@ export default async function JapanCompanyResearchPage({
     <div className="space-y-6">
       <BackLink />
       <ResearchHeader company={research.company} />
+      <SubjectActions subjectRef={`research-jp:${companyId}`} />
       <FilingTimelineSection filings={research.filings} />
       {isAnalysisEnabled() ? (
         <WhatChangedSection

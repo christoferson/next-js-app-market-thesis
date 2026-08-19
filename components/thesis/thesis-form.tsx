@@ -5,14 +5,12 @@ import Link from "next/link";
 import { useId, useState } from "react";
 
 import type { ClaimKind, ThesisClaim } from "@/lib/thesis/types";
+import { SubjectPicker } from "@/components/shared/subject-picker";
 import {
   CLAIM_IMPORTANCE_LABEL,
   CLAIM_IMPORTANCE_ORDER,
   CLAIM_KIND_LABEL,
   CLAIM_KIND_ORDER,
-  SUBJECT_SCOPES,
-  SUBJECT_SCOPE_LABEL,
-  type SubjectScope,
 } from "./labels";
 
 /**
@@ -44,7 +42,8 @@ const LIMITS = {
 } as const;
 
 const MAX_CLAIMS = 12;
-const SUBJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,99}$/;
+const SUBJECT_REF_PATTERN =
+  /^(demo|research|research-jp):[a-z0-9][a-z0-9-]{0,99}$/;
 const DEADLINE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const NUMERIC_HINT = "Percentages as decimals: 0.15 = 15%";
 
@@ -59,8 +58,14 @@ export interface ThesisFormInitialValues {
   claims: readonly ThesisClaim[];
 }
 
+/** A subject arrived at from elsewhere (a research page, a portfolio row). */
+export interface ThesisFormInitialSubject {
+  ref: string;
+  label: string;
+}
+
 export type ThesisFormProps =
-  | { mode: "create" }
+  | { mode: "create"; initialSubject?: ThesisFormInitialSubject | null }
   | { mode: "revise"; thesisId: string; initial: ThesisFormInitialValues };
 
 /* ------------------------------------------------------------------ drafts */
@@ -388,11 +393,6 @@ const CLAIM_IMPORTANCE_OPTIONS = CLAIM_IMPORTANCE_ORDER.map((level) => ({
   label: `${level} ${CLAIM_IMPORTANCE_LABEL[level]}`,
 }));
 
-const SUBJECT_SCOPE_OPTIONS = SUBJECT_SCOPES.map((scope) => ({
-  value: scope,
-  label: SUBJECT_SCOPE_LABEL[scope],
-}));
-
 /** One claim's fields. Module-level for the same focus reason as `Field`. */
 function ClaimFieldset({
   index,
@@ -529,9 +529,12 @@ export function ThesisForm(props: ThesisFormProps) {
   const isRevision = props.mode === "revise";
   const initial = props.mode === "revise" ? props.initial : null;
 
-  const [subjectScope, setSubjectScope] = useState<SubjectScope>("demo");
-  const [subjectId, setSubjectId] = useState("");
-  const [subjectLabel, setSubjectLabel] = useState("");
+  const initialSubject =
+    props.mode === "create" ? (props.initialSubject ?? null) : null;
+  const [subjectRef, setSubjectRef] = useState(initialSubject?.ref ?? "");
+  const [subjectLabel, setSubjectLabel] = useState(
+    initialSubject?.label ?? ""
+  );
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [summary, setSummary] = useState(initial?.summary ?? "");
@@ -654,10 +657,12 @@ export function ThesisForm(props: ThesisFormProps) {
     });
 
     if (props.mode === "create") {
-      const normalizedId = subjectId.trim().toLowerCase();
-      if (!SUBJECT_ID_PATTERN.test(normalizedId)) {
+      const trimmedRef = subjectRef.trim();
+      if (trimmedRef === "") {
+        errors.subjectRef = "Choose what this thesis is about.";
+      } else if (!SUBJECT_REF_PATTERN.test(trimmedRef)) {
         errors.subjectRef =
-          "Enter an identifier using lowercase letters, digits and hyphens.";
+          "Use a reference of the form demo:identifier, research:identifier or research-jp:identifier.";
       }
       const labelError = lengthError(subjectLabel, LIMITS.subjectLabel, true);
       if (labelError !== null) errors.subjectLabel = labelError;
@@ -693,7 +698,7 @@ export function ThesisForm(props: ThesisFormProps) {
     const requestBody =
       props.mode === "create"
         ? {
-            subjectRef: `${subjectScope}:${subjectId.trim().toLowerCase()}`,
+            subjectRef: subjectRef.trim(),
             subjectLabel: subjectLabel.trim(),
             ...body,
           }
@@ -758,43 +763,20 @@ export function ThesisForm(props: ThesisFormProps) {
             written, so every later version describes the same holding.
           </p>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SelectField
-              id={fieldId("subjectScope")}
-              label="Subject type"
-              value={subjectScope}
-              options={SUBJECT_SCOPE_OPTIONS}
+          <div className="sm:max-w-lg">
+            <SubjectPicker
+              id={fieldId("subjectRef")}
+              label="Subject"
+              hint="Research companies and demo instruments this application already knows."
+              value={subjectRef}
+              error={fieldErrors.subjectRef ?? fieldErrors.subjectLabel}
               disabled={isSubmitting}
-              onChange={(raw) => {
-                const scope = SUBJECT_SCOPES.find(
-                  (candidate) => candidate === raw
-                );
-                if (scope !== undefined) setSubjectScope(scope);
+              onChange={(subject) => {
+                setSubjectRef(subject?.ref ?? "");
+                setSubjectLabel(subject?.label ?? "");
               }}
             />
-            <Field
-              id={fieldId("subjectRef")}
-              label="Subject identifier"
-              hint="e.g. stock-us-northstar-software, aapl, toyota"
-              value={subjectId}
-              onChange={setSubjectId}
-              error={fieldErrors.subjectRef}
-              required
-              small
-              disabled={isSubmitting}
-            />
           </div>
-
-          <Field
-            id={fieldId("subjectLabel")}
-            label="Subject label"
-            hint="How it should read on the page, e.g. Northstar Software (NST.DEMO)."
-            value={subjectLabel}
-            onChange={setSubjectLabel}
-            error={fieldErrors.subjectLabel}
-            required
-            disabled={isSubmitting}
-          />
         </fieldset>
       ) : null}
 
